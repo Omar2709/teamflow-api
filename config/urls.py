@@ -9,4 +9,9 @@ urlpatterns = [
         "api/auth/",
         include("apps.users.urls"),
     ),
+
+    path(
+        "api/",
+        include("apps.teams.urls"),
+    ),
 ]
