@@ -292,3 +292,157 @@ def test_old_refresh_token_is_blacklisted_after_rotation():
     assert second_response.status_code == status.HTTP_401_UNAUTHORIZED
     assert "detail" in second_response.data
     assert second_response.data["code"] == "token_not_valid"
+
+@pytest.mark.django_db
+def test_logout_blacklists_refresh_token():
+    user = User.objects.create_user(
+        username="usuario_logout",
+        email="usuario_logout@example.com",
+        password="Password123!",
+    )
+
+    refresh_token = RefreshToken.for_user(user)
+    access_token = str(refresh_token.access_token)
+    refresh_token_string = str(refresh_token)
+
+    client = APIClient()
+
+    client.credentials(
+        HTTP_AUTHORIZATION=f"Bearer {access_token}",
+    )
+
+    logout_response = client.post(
+        reverse("users:logout"),
+        {
+            "refresh": refresh_token_string,
+        },
+        format="json",
+    )
+
+    assert logout_response.status_code == status.HTTP_200_OK
+    assert (
+        logout_response.data["message"]
+        == "Sesión cerrada correctamente."
+    )
+
+    refresh_response = client.post(
+        reverse("users:token-refresh"),
+        {
+            "refresh": refresh_token_string,
+        },
+        format="json",
+    )
+
+    assert refresh_response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert refresh_response.data["code"] == "token_not_valid"
+
+@pytest.mark.django_db
+def test_logout_rejects_request_without_refresh_token():
+    user = User.objects.create_user(
+        username="usuario_logout_sin_refresh",
+        email="logout_sin_refresh@example.com",
+        password="Password123!",
+    )
+
+    refresh_token = RefreshToken.for_user(user)
+    access_token = str(refresh_token.access_token)
+
+    client = APIClient()
+
+    client.credentials(
+        HTTP_AUTHORIZATION=f"Bearer {access_token}",
+    )
+
+    response = client.post(
+        reverse("users:logout"),
+        {},
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert (
+        response.data["message"]
+        == "Debes proporcionar el refresh token."
+    )
+
+def test_logout_rejects_unauthenticated_user():
+    client = APIClient()
+
+    response = client.post(
+        reverse("users:logout"),
+        {
+            "refresh": "token-cualquiera",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+@pytest.mark.django_db
+def test_logout_rejects_invalid_refresh_token():
+    user = User.objects.create_user(
+        username="usuario_logout_token_invalido",
+        email="logout_token_invalido@example.com",
+        password="Password123!",
+    )
+
+    valid_refresh = RefreshToken.for_user(user)
+    access_token = str(valid_refresh.access_token)
+
+    client = APIClient()
+
+    client.credentials(
+        HTTP_AUTHORIZATION=f"Bearer {access_token}",
+    )
+
+    response = client.post(
+        reverse("users:logout"),
+        {
+            "refresh": "refresh-token-invalido",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert (
+        response.data["message"]
+        == "El refresh token no es válido o ya fue invalidado."
+    )
+
+@pytest.mark.django_db
+def test_token_verify_accepts_valid_access_token():
+    user = User.objects.create_user(
+        username="usuario_verify",
+        email="usuario_verify@example.com",
+        password="Password123!",
+    )
+
+    refresh_token = RefreshToken.for_user(user)
+    access_token = str(refresh_token.access_token)
+
+    client = APIClient()
+
+    response = client.post(
+        reverse("users:token-verify"),
+        {
+            "token": access_token,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert not response.data
+
+def test_token_verify_rejects_invalid_token():
+    client = APIClient()
+
+    response = client.post(
+        reverse("users:token-verify"),
+        {
+            "token": "token-invalido",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert "detail" in response.data
