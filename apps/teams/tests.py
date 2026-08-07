@@ -957,3 +957,224 @@ def test_team_detail_rejects_put_method():
     assert team.name == "Equipo PUT"
     assert team.description == "Descripción original."
 
+@pytest.mark.django_db
+def test_team_owner_can_list_members():
+    owner = User.objects.create_user(
+        username="owner_list_members",
+        email="owner_list_members@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="member_list_members",
+        email="member_list_members@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo con miembros",
+        description="Equipo para probar el listado de miembros.",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "teams:team-members",
+            kwargs={"team_id": team.id},
+        )
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert len(response.data) == 2
+
+    members_by_username = {
+        item["username"]: item
+        for item in response.data
+    }
+
+    assert "owner_list_members" in members_by_username
+    assert "member_list_members" in members_by_username
+
+    owner_data = members_by_username["owner_list_members"]
+
+    assert owner_data["id"] == owner.id
+    assert owner_data["email"] == owner.email
+    assert owner_data["role"] == Membership.Role.OWNER
+    assert "joined_at" in owner_data
+
+    member_data = members_by_username["member_list_members"]
+
+    assert member_data["id"] == member.id
+    assert member_data["email"] == member.email
+    assert member_data["role"] == Membership.Role.MEMBER
+    assert "joined_at" in member_data
+
+@pytest.mark.django_db
+def test_team_admin_can_list_members():
+    owner = User.objects.create_user(
+        username="owner_admin_list_members",
+        email="owner_admin_list_members@example.com",
+        password="Password123!",
+    )
+
+    admin = User.objects.create_user(
+        username="admin_list_members",
+        email="admin_list_members@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo listado por admin",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=admin,
+        role=Membership.Role.ADMIN,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    response = client.get(
+        reverse(
+            "teams:team-members",
+            kwargs={"team_id": team.id},
+        )
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert len(response.data) == 2
+
+    returned_usernames = {
+        item["username"]
+        for item in response.data
+    }
+
+    assert owner.username in returned_usernames
+    assert admin.username in returned_usernames
+
+@pytest.mark.django_db
+def test_team_member_can_list_members():
+    owner = User.objects.create_user(
+        username="owner_member_list",
+        email="owner_member_list@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="normal_member_list",
+        email="normal_member_list@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo listado por miembro",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=member)
+
+    response = client.get(
+        reverse(
+            "teams:team-members",
+            kwargs={"team_id": team.id},
+        )
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert len(response.data) == 2
+
+    returned_usernames = {
+        item["username"]
+        for item in response.data
+    }
+
+    assert owner.username in returned_usernames
+    assert member.username in returned_usernames
+
+@pytest.mark.django_db
+def test_outsider_cannot_list_team_members():
+    owner = User.objects.create_user(
+        username="owner_private_members",
+        email="owner_private_members@example.com",
+        password="Password123!",
+    )
+
+    outsider = User.objects.create_user(
+        username="outsider_members",
+        email="outsider_members@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo miembros privados",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=outsider)
+
+    response = client.get(
+        reverse(
+            "teams:team-members",
+            kwargs={"team_id": team.id},
+        )
+    )
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert "detail" in response.data
+
+def test_unauthenticated_user_cannot_list_team_members():
+    client = APIClient()
+
+    response = client.get(
+        reverse(
+            "teams:team-members",
+            kwargs={"team_id": 1},
+        )
+    )
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+

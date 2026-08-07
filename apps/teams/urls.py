@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import TeamDetailView, TeamListCreateView
+from .views import (TeamDetailView, TeamListCreateView, TeamMembershipListView,)
 
 
 app_name = "teams"
@@ -15,5 +15,10 @@ urlpatterns = [
         "teams/<int:pk>/",
         TeamDetailView.as_view(),
         name="team-detail",
+    ),
+    path(
+        "teams/<int:team_id>/members/",
+        TeamMembershipListView.as_view(),
+        name="team-members",
     ),
 ]
