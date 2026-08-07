@@ -581,3 +581,379 @@ def test_team_member_cannot_update_team():
     assert team.name == "Nombre original"
     assert team.description == "Descripción original."
     assert team.created_by == owner
+
+def test_unauthenticated_user_cannot_retrieve_team_detail():
+    client = APIClient()
+
+    response = client.get(
+        reverse(
+            "teams:team-detail",
+            kwargs={"pk": 1},
+        )
+    )
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+def test_unauthenticated_user_cannot_update_team():
+    client = APIClient()
+
+    response = client.patch(
+        reverse(
+            "teams:team-detail",
+            kwargs={"pk": 1},
+        ),
+        {
+            "name": "Intento no autorizado",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+@pytest.mark.django_db
+def test_outsider_cannot_update_team():
+    owner = User.objects.create_user(
+        username="owner_equipo_privado_update",
+        email="owner_privado_update@example.com",
+        password="Password123!",
+    )
+
+    outsider = User.objects.create_user(
+        username="outsider_update",
+        email="outsider_update@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo privado",
+        description="Descripción original.",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=outsider)
+
+    response = client.patch(
+        reverse(
+            "teams:team-detail",
+            kwargs={"pk": team.pk},
+        ),
+        {
+            "name": "Intento externo",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    team.refresh_from_db()
+
+    assert team.name == "Equipo privado"
+    assert team.description == "Descripción original."
+
+@pytest.mark.django_db
+def test_team_owner_can_update_only_name():
+    owner = User.objects.create_user(
+        username="owner_patch_name",
+        email="owner_patch_name@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Nombre original",
+        description="Descripción que debe conservarse.",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.patch(
+        reverse(
+            "teams:team-detail",
+            kwargs={"pk": team.pk},
+        ),
+        {
+            "name": "   Nuevo    nombre   ",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["name"] == "Nuevo nombre"
+    assert (
+        response.data["description"]
+        == "Descripción que debe conservarse."
+    )
+
+    team.refresh_from_db()
+
+    assert team.name == "Nuevo nombre"
+    assert team.description == "Descripción que debe conservarse."
+
+@pytest.mark.django_db
+def test_team_owner_can_update_only_description():
+    owner = User.objects.create_user(
+        username="owner_patch_description",
+        email="owner_patch_description@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Nombre que debe conservarse",
+        description="Descripción original.",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.patch(
+        reverse(
+            "teams:team-detail",
+            kwargs={"pk": team.pk},
+        ),
+        {
+            "description": "Nueva descripción.",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["name"] == "Nombre que debe conservarse"
+    assert response.data["description"] == "Nueva descripción."
+
+    team.refresh_from_db()
+
+    assert team.name == "Nombre que debe conservarse"
+    assert team.description == "Nueva descripción."
+
+@pytest.mark.django_db
+def test_team_update_rejects_name_with_only_spaces():
+    owner = User.objects.create_user(
+        username="owner_update_blank",
+        email="owner_update_blank@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Nombre válido",
+        description="Descripción original.",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.patch(
+        reverse(
+            "teams:team-detail",
+            kwargs={"pk": team.pk},
+        ),
+        {
+            "name": "       ",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "name" in response.data
+
+    team.refresh_from_db()
+
+    assert team.name == "Nombre válido"
+
+@pytest.mark.django_db
+def test_team_update_rejects_name_longer_than_120_characters():
+    owner = User.objects.create_user(
+        username="owner_update_long_name",
+        email="owner_update_long_name@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Nombre original",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.patch(
+        reverse(
+            "teams:team-detail",
+            kwargs={"pk": team.pk},
+        ),
+        {
+            "name": "a" * 121,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "name" in response.data
+
+    team.refresh_from_db()
+
+    assert team.name == "Nombre original"
+
+@pytest.mark.django_db
+def test_team_update_ignores_created_by():
+    owner = User.objects.create_user(
+        username="owner_protected_creator",
+        email="owner_protected_creator@example.com",
+        password="Password123!",
+    )
+
+    other_user = User.objects.create_user(
+        username="fake_creator_update",
+        email="fake_creator_update@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo seguro",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.patch(
+        reverse(
+            "teams:team-detail",
+            kwargs={"pk": team.pk},
+        ),
+        {
+            "name": "Equipo actualizado",
+            "created_by": {
+                "id": other_user.id,
+            },
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["created_by"]["id"] == owner.id
+
+    team.refresh_from_db()
+
+    assert team.created_by == owner
+    assert team.created_by != other_user
+
+@pytest.mark.django_db
+def test_team_update_ignores_member_count():
+    owner = User.objects.create_user(
+        username="owner_protected_member_count",
+        email="owner_member_count@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo conteo",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.patch(
+        reverse(
+            "teams:team-detail",
+            kwargs={"pk": team.pk},
+        ),
+        {
+            "member_count": 999,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["member_count"] == 1
+
+    assert team.memberships.count() == 1
+
+@pytest.mark.django_db
+def test_team_detail_rejects_put_method():
+    owner = User.objects.create_user(
+        username="owner_put_disabled",
+        email="owner_put_disabled@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo PUT",
+        description="Descripción original.",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.put(
+        reverse(
+            "teams:team-detail",
+            kwargs={"pk": team.pk},
+        ),
+        {
+            "name": "Intento con PUT",
+            "description": "No debería actualizarse.",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
+
+    team.refresh_from_db()
+
+    assert team.name == "Equipo PUT"
+    assert team.description == "Descripción original."
+
