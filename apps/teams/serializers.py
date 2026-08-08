@@ -157,3 +157,8 @@ class TeamMembershipRoleUpdateSerializer(
     class Meta:
         model = Membership
         fields = ("role",)
+
+class TeamOwnershipTransferSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField(
+        min_value=1,
+    )

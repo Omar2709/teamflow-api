@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from .models import Membership, Team
 from .permissions import IsTeamMemberOrManager
 from .serializers import (
+    TeamOwnershipTransferSerializer,
     TeamMembershipRoleUpdateSerializer,
     TeamMembershipCreateSerializer,
     TeamMembershipSerializer,
@@ -296,4 +297,82 @@ class TeamMembershipRoleUpdateView(
 
         return Response(
             status=status.HTTP_204_NO_CONTENT,
+        )
+
+class TeamOwnershipTransferView(
+    generics.GenericAPIView
+):
+    serializer_class = TeamOwnershipTransferSerializer
+    permission_classes = (
+        permissions.IsAuthenticated,
+    )
+
+    http_method_names = (
+        "post",
+        "head",
+        "options",
+    )
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        team = get_object_or_404(
+            Team.objects.filter(
+                members=request.user,
+            ),
+            pk=self.kwargs["team_id"],
+        )
+
+        current_owner = get_object_or_404(
+            Membership,
+            team=team,
+            user=request.user,
+        )
+
+        if current_owner.role != Membership.Role.OWNER:
+            raise PermissionDenied(
+                "Solo el propietario puede transferir la propiedad."
+            )
+
+        serializer = self.get_serializer(
+            data=request.data,
+        )
+
+        serializer.is_valid(
+            raise_exception=True,
+        )
+
+        new_owner = get_object_or_404(
+            Membership.objects.select_related("user"),
+            team=team,
+            user_id=serializer.validated_data["user_id"],
+        )
+
+        if new_owner.user_id == request.user.id:
+            raise ValidationError(
+                {
+                    "user_id": (
+                        "No puedes transferirte la propiedad "
+                        "a ti mismo."
+                    )
+                }
+            )
+
+        current_owner.role = Membership.Role.ADMIN
+        current_owner.save(
+            update_fields=["role"],
+        )
+
+        new_owner.role = Membership.Role.OWNER
+        new_owner.save(
+            update_fields=["role"],
+        )
+
+        return Response(
+            {
+                "message": "Propiedad transferida correctamente.",
+                "new_owner": TeamMembershipSerializer(
+                    new_owner,
+                ).data,
+            },
+            status=status.HTTP_200_OK,
         )

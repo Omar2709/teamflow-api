@@ -5,6 +5,7 @@ from .views import (
     TeamListCreateView, 
     TeamMembershipListView,
     TeamMembershipRoleUpdateView,
+    TeamOwnershipTransferView,
 )
 
 
@@ -30,5 +31,10 @@ urlpatterns = [
     "teams/<int:team_id>/members/<int:user_id>/",
     TeamMembershipRoleUpdateView.as_view(),
     name="team-member-detail",
+    ),
+    path(
+        "teams/<int:team_id>/transfer-ownership/",
+        TeamOwnershipTransferView.as_view(),
+        name="team-transfer-ownership",
     ),
 ]

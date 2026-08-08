@@ -2095,3 +2095,382 @@ def test_team_owner_cannot_leave_team():
 
     assert team.memberships.count() == 1
 
+@pytest.mark.django_db
+def test_team_owner_can_transfer_ownership():
+    owner = User.objects.create_user(
+        username="current_owner_transfer",
+        email="current_owner_transfer@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="new_owner_transfer",
+        email="new_owner_transfer@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo transferencia",
+        created_by=owner,
+    )
+
+    owner_membership = Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    member_membership = Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.post(
+        reverse(
+            "teams:team-transfer-ownership",
+            kwargs={
+                "team_id": team.id,
+            },
+        ),
+        {
+            "user_id": member.id,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert (
+        response.data["message"]
+        == "Propiedad transferida correctamente."
+    )
+
+    assert response.data["new_owner"]["id"] == member.id
+    assert (
+        response.data["new_owner"]["role"]
+        == Membership.Role.OWNER
+    )
+
+    owner_membership.refresh_from_db()
+    member_membership.refresh_from_db()
+    team.refresh_from_db()
+
+    assert owner_membership.role == Membership.Role.ADMIN
+    assert member_membership.role == Membership.Role.OWNER
+
+    assert Membership.objects.filter(
+        team=team,
+        role=Membership.Role.OWNER,
+    ).count() == 1
+
+    assert team.created_by == owner
+
+@pytest.mark.django_db
+def test_team_admin_cannot_transfer_ownership():
+    owner = User.objects.create_user(
+        username="owner_admin_transfer",
+        email="owner_admin_transfer@example.com",
+        password="Password123!",
+    )
+
+    admin = User.objects.create_user(
+        username="admin_cannot_transfer",
+        email="admin_cannot_transfer@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="member_transfer_target",
+        email="member_transfer_target@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo transferencia restringida admin",
+        created_by=owner,
+    )
+
+    owner_membership = Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=admin,
+        role=Membership.Role.ADMIN,
+    )
+
+    member_membership = Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    response = client.post(
+        reverse(
+            "teams:team-transfer-ownership",
+            kwargs={"team_id": team.id},
+        ),
+        {
+            "user_id": member.id,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    owner_membership.refresh_from_db()
+    member_membership.refresh_from_db()
+
+    assert owner_membership.role == Membership.Role.OWNER
+    assert member_membership.role == Membership.Role.MEMBER
+
+@pytest.mark.django_db
+def test_team_member_cannot_transfer_ownership():
+    owner = User.objects.create_user(
+        username="owner_member_transfer",
+        email="owner_member_transfer@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="member_cannot_transfer",
+        email="member_cannot_transfer@example.com",
+        password="Password123!",
+    )
+
+    target = User.objects.create_user(
+        username="member_transfer_second_target",
+        email="member_transfer_second_target@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo transferencia restringida member",
+        created_by=owner,
+    )
+
+    owner_membership = Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    target_membership = Membership.objects.create(
+        team=team,
+        user=target,
+        role=Membership.Role.MEMBER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=member)
+
+    response = client.post(
+        reverse(
+            "teams:team-transfer-ownership",
+            kwargs={"team_id": team.id},
+        ),
+        {
+            "user_id": target.id,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    owner_membership.refresh_from_db()
+    target_membership.refresh_from_db()
+
+    assert owner_membership.role == Membership.Role.OWNER
+    assert target_membership.role == Membership.Role.MEMBER
+
+@pytest.mark.django_db
+def test_outsider_cannot_transfer_team_ownership():
+    owner = User.objects.create_user(
+        username="owner_private_transfer",
+        email="owner_private_transfer@example.com",
+        password="Password123!",
+    )
+
+    outsider = User.objects.create_user(
+        username="outsider_transfer",
+        email="outsider_transfer@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="private_transfer_member",
+        email="private_transfer_member@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo transferencia privada",
+        created_by=owner,
+    )
+
+    owner_membership = Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    member_membership = Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=outsider)
+
+    response = client.post(
+        reverse(
+            "teams:team-transfer-ownership",
+            kwargs={"team_id": team.id},
+        ),
+        {
+            "user_id": member.id,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    owner_membership.refresh_from_db()
+    member_membership.refresh_from_db()
+
+    assert owner_membership.role == Membership.Role.OWNER
+    assert member_membership.role == Membership.Role.MEMBER
+
+@pytest.mark.django_db
+def test_team_owner_cannot_transfer_ownership_to_outsider():
+    owner = User.objects.create_user(
+        username="owner_transfer_to_outsider",
+        email="owner_transfer_to_outsider@example.com",
+        password="Password123!",
+    )
+
+    outsider = User.objects.create_user(
+        username="outsider_cannot_be_owner",
+        email="outsider_cannot_be_owner@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo transferencia solo miembros",
+        created_by=owner,
+    )
+
+    owner_membership = Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.post(
+        reverse(
+            "teams:team-transfer-ownership",
+            kwargs={"team_id": team.id},
+        ),
+        {
+            "user_id": outsider.id,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    owner_membership.refresh_from_db()
+
+    assert owner_membership.role == Membership.Role.OWNER
+
+    assert not Membership.objects.filter(
+        team=team,
+        user=outsider,
+    ).exists()
+
+    assert Membership.objects.filter(
+        team=team,
+        role=Membership.Role.OWNER,
+    ).count() == 1
+
+@pytest.mark.django_db
+def test_team_owner_cannot_transfer_ownership_to_self():
+    owner = User.objects.create_user(
+        username="owner_self_transfer",
+        email="owner_self_transfer@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo transferencia propia",
+        created_by=owner,
+    )
+
+    owner_membership = Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.post(
+        reverse(
+            "teams:team-transfer-ownership",
+            kwargs={"team_id": team.id},
+        ),
+        {
+            "user_id": owner.id,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "user_id" in response.data
+
+    owner_membership.refresh_from_db()
+
+    assert owner_membership.role == Membership.Role.OWNER
+
+    assert Membership.objects.filter(
+        team=team,
+        role=Membership.Role.OWNER,
+    ).count() == 1
+
+def test_unauthenticated_user_cannot_transfer_team_ownership():
+    client = APIClient()
+
+    response = client.post(
+        reverse(
+            "teams:team-transfer-ownership",
+            kwargs={"team_id": 1},
+        ),
+        {
+            "user_id": 2,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
