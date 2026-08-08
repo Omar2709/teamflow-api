@@ -1178,3 +1178,920 @@ def test_unauthenticated_user_cannot_list_team_members():
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
+@pytest.mark.django_db
+def test_team_owner_can_add_member():
+    owner = User.objects.create_user(
+        username="owner_add_member",
+        email="owner_add_member@example.com",
+        password="Password123!",
+    )
+
+    new_member = User.objects.create_user(
+        username="new_team_member",
+        email="new_team_member@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo para agregar miembros",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.post(
+        reverse(
+            "teams:team-members",
+            kwargs={"team_id": team.id},
+        ),
+        {
+            "username": new_member.username,
+            "role": Membership.Role.MEMBER,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+
+    assert response.data["id"] == new_member.id
+    assert response.data["username"] == new_member.username
+    assert response.data["email"] == new_member.email
+    assert response.data["role"] == Membership.Role.MEMBER
+    assert "joined_at" in response.data
+
+    membership = Membership.objects.get(
+        team=team,
+        user=new_member,
+    )
+
+    assert membership.role == Membership.Role.MEMBER
+
+    assert team.memberships.count() == 2
+
+@pytest.mark.django_db
+def test_team_admin_can_add_member():
+    owner = User.objects.create_user(
+        username="owner_admin_add_member",
+        email="owner_admin_add_member@example.com",
+        password="Password123!",
+    )
+
+    admin = User.objects.create_user(
+        username="admin_add_member",
+        email="admin_add_member@example.com",
+        password="Password123!",
+    )
+
+    new_member = User.objects.create_user(
+        username="member_added_by_admin",
+        email="member_added_by_admin@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo administrado",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=admin,
+        role=Membership.Role.ADMIN,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    response = client.post(
+        reverse(
+            "teams:team-members",
+            kwargs={"team_id": team.id},
+        ),
+        {
+            "username": new_member.username,
+            "role": Membership.Role.MEMBER,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+
+    assert response.data["id"] == new_member.id
+    assert response.data["username"] == new_member.username
+    assert response.data["email"] == new_member.email
+    assert response.data["role"] == Membership.Role.MEMBER
+    assert "joined_at" in response.data
+
+    membership = Membership.objects.get(
+        team=team,
+        user=new_member,
+    )
+
+    assert membership.role == Membership.Role.MEMBER
+
+    assert team.memberships.count() == 3
+
+@pytest.mark.django_db
+def test_team_member_cannot_add_member():
+    owner = User.objects.create_user(
+        username="owner_member_cannot_add",
+        email="owner_member_cannot_add@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="member_without_add_permission",
+        email="member_without_add_permission@example.com",
+        password="Password123!",
+    )
+
+    new_user = User.objects.create_user(
+        username="user_not_added",
+        email="user_not_added@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo restringido",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=member)
+
+    response = client.post(
+        reverse(
+            "teams:team-members",
+            kwargs={"team_id": team.id},
+        ),
+        {
+            "username": new_user.username,
+            "role": Membership.Role.MEMBER,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    assert not Membership.objects.filter(
+        team=team,
+        user=new_user,
+    ).exists()
+
+    assert team.memberships.count() == 2
+
+@pytest.mark.django_db
+def test_cannot_add_same_user_twice_to_team():
+    owner = User.objects.create_user(
+        username="owner_duplicate_member",
+        email="owner_duplicate_member@example.com",
+        password="Password123!",
+    )
+
+    existing_member = User.objects.create_user(
+        username="existing_team_member",
+        email="existing_team_member@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo sin duplicados",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=existing_member,
+        role=Membership.Role.MEMBER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.post(
+        reverse(
+            "teams:team-members",
+            kwargs={"team_id": team.id},
+        ),
+        {
+            "username": existing_member.username,
+            "role": Membership.Role.MEMBER,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "username" in response.data
+
+    assert (
+        Membership.objects.filter(
+            team=team,
+            user=existing_member,
+        ).count()
+        == 1
+    )
+
+    assert team.memberships.count() == 2
+
+@pytest.mark.django_db
+def test_cannot_add_nonexistent_user_to_team():
+    owner = User.objects.create_user(
+        username="owner_nonexistent_user",
+        email="owner_nonexistent_user@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo usuario inexistente",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.post(
+        reverse(
+            "teams:team-members",
+            kwargs={"team_id": team.id},
+        ),
+        {
+            "username": "usuario_que_no_existe",
+            "role": Membership.Role.MEMBER,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "username" in response.data
+
+    assert Membership.objects.filter(
+        team=team,
+    ).count() == 1
+
+    assert team.memberships.count() == 1
+
+@pytest.mark.django_db
+def test_team_owner_can_promote_member_to_admin():
+    owner = User.objects.create_user(
+        username="owner_promote_member",
+        email="owner_promote_member@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="member_to_promote",
+        email="member_to_promote@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo promoción",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    membership = Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.patch(
+        reverse(
+            "teams:team-member-detail",
+            kwargs={
+                "team_id": team.id,
+                "user_id": member.id,
+            },
+        ),
+        {
+            "role": Membership.Role.ADMIN,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert response.data["id"] == member.id
+    assert response.data["username"] == member.username
+    assert response.data["role"] == Membership.Role.ADMIN
+
+    membership.refresh_from_db()
+
+    assert membership.role == Membership.Role.ADMIN
+
+@pytest.mark.django_db
+def test_team_owner_can_demote_admin_to_member():
+    owner = User.objects.create_user(
+        username="owner_demote_admin",
+        email="owner_demote_admin@example.com",
+        password="Password123!",
+    )
+
+    admin = User.objects.create_user(
+        username="admin_to_demote",
+        email="admin_to_demote@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo degradación",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    membership = Membership.objects.create(
+        team=team,
+        user=admin,
+        role=Membership.Role.ADMIN,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.patch(
+        reverse(
+            "teams:team-member-detail",
+            kwargs={
+                "team_id": team.id,
+                "user_id": admin.id,
+            },
+        ),
+        {
+            "role": Membership.Role.MEMBER,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert response.data["id"] == admin.id
+    assert response.data["username"] == admin.username
+    assert response.data["role"] == Membership.Role.MEMBER
+
+    membership.refresh_from_db()
+
+    assert membership.role == Membership.Role.MEMBER
+
+@pytest.mark.django_db
+def test_team_admin_cannot_change_member_role():
+    owner = User.objects.create_user(
+        username="owner_admin_cannot_change_role",
+        email="owner_admin_cannot_change_role@example.com",
+        password="Password123!",
+    )
+
+    admin = User.objects.create_user(
+        username="admin_cannot_change_role",
+        email="admin_cannot_change_role@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="member_target_by_admin",
+        email="member_target_by_admin@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo roles restringidos admin",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=admin,
+        role=Membership.Role.ADMIN,
+    )
+
+    member_membership = Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    response = client.patch(
+        reverse(
+            "teams:team-member-detail",
+            kwargs={
+                "team_id": team.id,
+                "user_id": member.id,
+            },
+        ),
+        {
+            "role": Membership.Role.ADMIN,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    member_membership.refresh_from_db()
+
+    assert member_membership.role == Membership.Role.MEMBER
+
+@pytest.mark.django_db
+def test_team_member_cannot_change_roles():
+    owner = User.objects.create_user(
+        username="owner_member_cannot_change_role",
+        email="owner_member_cannot_change_role@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="member_cannot_change_role",
+        email="member_cannot_change_role@example.com",
+        password="Password123!",
+    )
+
+    other_member = User.objects.create_user(
+        username="other_member_role_target",
+        email="other_member_role_target@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo roles restringidos member",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    target_membership = Membership.objects.create(
+        team=team,
+        user=other_member,
+        role=Membership.Role.MEMBER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=member)
+
+    response = client.patch(
+        reverse(
+            "teams:team-member-detail",
+            kwargs={
+                "team_id": team.id,
+                "user_id": other_member.id,
+            },
+        ),
+        {
+            "role": Membership.Role.ADMIN,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    target_membership.refresh_from_db()
+
+    assert target_membership.role == Membership.Role.MEMBER
+
+@pytest.mark.django_db
+def test_team_owner_cannot_assign_owner_role_through_role_endpoint():
+    owner = User.objects.create_user(
+        username="current_team_owner",
+        email="current_team_owner@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="member_cannot_become_owner",
+        email="member_cannot_become_owner@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo propiedad protegida",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    member_membership = Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.patch(
+        reverse(
+            "teams:team-member-detail",
+            kwargs={
+                "team_id": team.id,
+                "user_id": member.id,
+            },
+        ),
+        {
+            "role": Membership.Role.OWNER,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "role" in response.data
+
+    member_membership.refresh_from_db()
+
+    assert member_membership.role == Membership.Role.MEMBER
+
+    assert Membership.objects.filter(
+        team=team,
+        role=Membership.Role.OWNER,
+    ).count() == 1
+
+    assert Membership.objects.filter(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    ).exists()
+
+@pytest.mark.django_db
+def test_team_owner_can_remove_member():
+    owner = User.objects.create_user(
+        username="owner_remove_member",
+        email="owner_remove_member@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="member_to_remove",
+        email="member_to_remove@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo eliminación member",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.delete(
+        reverse(
+            "teams:team-member-detail",
+            kwargs={
+                "team_id": team.id,
+                "user_id": member.id,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+
+    assert not Membership.objects.filter(
+        team=team,
+        user=member,
+    ).exists()
+
+    assert Membership.objects.filter(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    ).exists()
+
+    assert team.memberships.count() == 1
+
+@pytest.mark.django_db
+def test_team_owner_can_remove_admin():
+    owner = User.objects.create_user(
+        username="owner_remove_admin",
+        email="owner_remove_admin@example.com",
+        password="Password123!",
+    )
+
+    admin = User.objects.create_user(
+        username="admin_to_remove",
+        email="admin_to_remove@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo eliminación admin",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=admin,
+        role=Membership.Role.ADMIN,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.delete(
+        reverse(
+            "teams:team-member-detail",
+            kwargs={
+                "team_id": team.id,
+                "user_id": admin.id,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+
+    assert not Membership.objects.filter(
+        team=team,
+        user=admin,
+    ).exists()
+
+    assert team.memberships.count() == 1
+
+@pytest.mark.django_db
+def test_team_admin_can_remove_member():
+    owner = User.objects.create_user(
+        username="owner_admin_remove_member",
+        email="owner_admin_remove_member@example.com",
+        password="Password123!",
+    )
+
+    admin = User.objects.create_user(
+        username="admin_remove_member",
+        email="admin_remove_member@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="member_removed_by_admin",
+        email="member_removed_by_admin@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo admin elimina member",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=admin,
+        role=Membership.Role.ADMIN,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    response = client.delete(
+        reverse(
+            "teams:team-member-detail",
+            kwargs={
+                "team_id": team.id,
+                "user_id": member.id,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+
+    assert not Membership.objects.filter(
+        team=team,
+        user=member,
+    ).exists()
+
+    assert Membership.objects.filter(
+        team=team,
+        user=admin,
+        role=Membership.Role.ADMIN,
+    ).exists()
+
+    assert team.memberships.count() == 2
+
+@pytest.mark.django_db
+def test_team_admin_cannot_remove_owner_or_admin():
+    owner = User.objects.create_user(
+        username="protected_owner",
+        email="protected_owner@example.com",
+        password="Password123!",
+    )
+
+    admin = User.objects.create_user(
+        username="requesting_admin",
+        email="requesting_admin@example.com",
+        password="Password123!",
+    )
+
+    other_admin = User.objects.create_user(
+        username="protected_admin",
+        email="protected_admin@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo roles protegidos",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=admin,
+        role=Membership.Role.ADMIN,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=other_admin,
+        role=Membership.Role.ADMIN,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    owner_response = client.delete(
+        reverse(
+            "teams:team-member-detail",
+            kwargs={
+                "team_id": team.id,
+                "user_id": owner.id,
+            },
+        )
+    )
+
+    assert owner_response.status_code == status.HTTP_403_FORBIDDEN
+
+    admin_response = client.delete(
+        reverse(
+            "teams:team-member-detail",
+            kwargs={
+                "team_id": team.id,
+                "user_id": other_admin.id,
+            },
+        )
+    )
+
+    assert admin_response.status_code == status.HTTP_403_FORBIDDEN
+
+    assert Membership.objects.filter(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    ).exists()
+
+    assert Membership.objects.filter(
+        team=team,
+        user=other_admin,
+        role=Membership.Role.ADMIN,
+    ).exists()
+
+    assert team.memberships.count() == 3
+
+@pytest.mark.django_db
+def test_team_owner_cannot_leave_team():
+    owner = User.objects.create_user(
+        username="owner_cannot_leave",
+        email="owner_cannot_leave@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo que necesita propietario",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.delete(
+        reverse(
+            "teams:team-member-detail",
+            kwargs={
+                "team_id": team.id,
+                "user_id": owner.id,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    assert Membership.objects.filter(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    ).exists()
+
+    assert Membership.objects.filter(
+        team=team,
+        role=Membership.Role.OWNER,
+    ).count() == 1
+
+    assert team.memberships.count() == 1
+

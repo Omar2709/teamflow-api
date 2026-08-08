@@ -2,6 +2,9 @@ from rest_framework import serializers
 
 from .models import Membership,Team
 
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 class TeamSerializer(serializers.ModelSerializer):
     created_by = serializers.SerializerMethodField()
@@ -84,3 +87,73 @@ class TeamMembershipSerializer(serializers.ModelSerializer):
             "joined_at",
         )
         read_only_fields = fields
+
+class TeamMembershipCreateSerializer(serializers.Serializer):
+    username = serializers.CharField(max_length=150)
+
+    role = serializers.ChoiceField(
+        choices=(
+            (
+                Membership.Role.ADMIN,
+                "Administrador",
+            ),
+            (
+                Membership.Role.MEMBER,
+                "Miembro",
+            ),
+        ),
+        default=Membership.Role.MEMBER,
+    )
+
+    def validate(self, attrs):
+        username = attrs["username"]
+        team = self.context["team"]
+
+        user = User.objects.filter(
+            username=username,
+        ).first()
+
+        if user is None:
+            raise serializers.ValidationError(
+                {
+                    "username": (
+                        "No existe un usuario con ese nombre."
+                    )
+                }
+            )
+
+        if Membership.objects.filter(
+            team=team,
+            user=user,
+        ).exists():
+            raise serializers.ValidationError(
+                {
+                    "username": (
+                        "Este usuario ya pertenece al equipo."
+                    )
+                }
+            )
+
+        attrs["user"] = user
+
+        return attrs
+
+class TeamMembershipRoleUpdateSerializer(
+    serializers.ModelSerializer
+):
+    role = serializers.ChoiceField(
+        choices=(
+            (
+                Membership.Role.ADMIN,
+                "Administrador",
+            ),
+            (
+                Membership.Role.MEMBER,
+                "Miembro",
+            ),
+        )
+    )
+
+    class Meta:
+        model = Membership
+        fields = ("role",)
