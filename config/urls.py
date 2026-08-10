@@ -14,4 +14,8 @@ urlpatterns = [
         "api/",
         include("apps.teams.urls"),
     ),
+    path(
+        "api/",
+        include("apps.projects.urls"),
+    ),
 ]
