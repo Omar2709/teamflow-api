@@ -75,7 +75,7 @@ class TeamProjectListCreateView(
         )
 
 class ProjectDetailView(
-    generics.RetrieveUpdateAPIView
+    generics.RetrieveUpdateDestroyAPIView
 ):
     serializer_class = ProjectSerializer
 
@@ -87,6 +87,7 @@ class ProjectDetailView(
     http_method_names = (
         "get",
         "patch",
+        "delete",
         "head",
         "options",
     )

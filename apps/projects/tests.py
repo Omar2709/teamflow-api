@@ -915,3 +915,271 @@ def test_project_update_ignores_server_controlled_fields():
     assert project.created_by == owner
     assert project.created_by != other_user
 
+@pytest.mark.django_db
+def test_team_owner_can_delete_project():
+    owner = User.objects.create_user(
+        username="owner_delete_project",
+        email="owner_delete_project@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo eliminación proyecto owner",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto para eliminar",
+        description="Este proyecto será eliminado.",
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.delete(
+        reverse(
+            "projects:project-detail",
+            kwargs={
+                "team_id": team.id,
+                "pk": project.id,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+
+    assert not Project.objects.filter(
+        id=project.id,
+    ).exists()
+
+@pytest.mark.django_db
+def test_team_admin_can_delete_project():
+    owner = User.objects.create_user(
+        username="owner_admin_delete_project",
+        email="owner_admin_delete_project@example.com",
+        password="Password123!",
+    )
+
+    admin = User.objects.create_user(
+        username="admin_delete_project",
+        email="admin_delete_project@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo eliminación proyecto admin",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=admin,
+        role=Membership.Role.ADMIN,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto eliminado por admin",
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    response = client.delete(
+        reverse(
+            "projects:project-detail",
+            kwargs={
+                "team_id": team.id,
+                "pk": project.id,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+
+    assert not Project.objects.filter(
+        id=project.id,
+    ).exists()
+
+@pytest.mark.django_db
+def test_team_member_cannot_delete_project():
+    owner = User.objects.create_user(
+        username="owner_member_delete_project",
+        email="owner_member_delete_project@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="member_cannot_delete_project",
+        email="member_cannot_delete_project@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo proyecto protegido de member",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto protegido",
+        description="El member no puede eliminarlo.",
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=member)
+
+    response = client.delete(
+        reverse(
+            "projects:project-detail",
+            kwargs={
+                "team_id": team.id,
+                "pk": project.id,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    assert Project.objects.filter(
+        id=project.id,
+    ).exists()
+
+@pytest.mark.django_db
+def test_outsider_cannot_delete_project():
+    owner = User.objects.create_user(
+        username="owner_private_delete_project",
+        email="owner_private_delete_project@example.com",
+        password="Password123!",
+    )
+
+    outsider = User.objects.create_user(
+        username="outsider_delete_project",
+        email="outsider_delete_project@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo proyecto privado eliminación",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto privado eliminación",
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=outsider)
+
+    response = client.delete(
+        reverse(
+            "projects:project-detail",
+            kwargs={
+                "team_id": team.id,
+                "pk": project.id,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    assert Project.objects.filter(
+        id=project.id,
+    ).exists()
+
+@pytest.mark.django_db
+def test_project_update_rejects_duplicate_name_in_same_team():
+    owner = User.objects.create_user(
+        username="owner_duplicate_project_update",
+        email="owner_duplicate_project_update@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo proyectos actualización única",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Project.objects.create(
+        team=team,
+        name="Proyecto existente",
+        created_by=owner,
+    )
+
+    project_to_update = Project.objects.create(
+        team=team,
+        name="Proyecto diferente",
+        description="Este proyecto intentará usar un nombre duplicado.",
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.patch(
+        reverse(
+            "projects:project-detail",
+            kwargs={
+                "team_id": team.id,
+                "pk": project_to_update.id,
+            },
+        ),
+        {
+            "name": "   Proyecto    existente   ",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "name" in response.data
+
+    project_to_update.refresh_from_db()
+
+    assert project_to_update.name == "Proyecto diferente"
+
+    assert Project.objects.filter(
+        team=team,
+    ).count() == 2
+
