@@ -1,0 +1,16 @@
+from django.urls import path
+
+from .views import ProjectTaskListCreateView
+
+
+app_name = "tasks"
+
+
+urlpatterns = [
+    path(
+        "teams/<int:team_id>/projects/"
+        "<int:project_id>/tasks/",
+        ProjectTaskListCreateView.as_view(),
+        name="project-task-list-create",
+    ),
+]
