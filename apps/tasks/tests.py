@@ -1,16 +1,15 @@
 import pytest
-from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from apps.projects.models import Project
 from apps.teams.models import Membership, Team
+from apps.users.models import User
 
 from .models import Task
 
 
-User = get_user_model()
 
 @pytest.mark.django_db
 def test_team_owner_can_create_task():
@@ -599,3 +598,482 @@ def test_task_assigned_user_must_belong_to_team():
 
     assert Task.objects.count() == 0
 
+@pytest.mark.django_db
+def test_team_member_can_retrieve_task_detail():
+    owner = User.objects.create_user(
+        username="owner_task_detail",
+        email="owner_task_detail@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="member_task_detail",
+        email="member_task_detail@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo detalle tarea",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto detalle tarea",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea consultable",
+        description="Visible para miembros.",
+        priority=Task.Priority.HIGH,
+        created_by=owner,
+        assigned_to=member,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=member)
+
+    response = client.get(
+        reverse(
+            "tasks:task-detail",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+                "pk": task.pk,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert response.data["id"] == task.pk
+    assert response.data["project"] == project.pk
+    assert response.data["title"] == task.title
+    assert response.data["description"] == task.description
+    assert response.data["status"] == Task.Status.TODO
+    assert response.data["priority"] == Task.Priority.HIGH
+    assert response.data["assigned_to"] == member.pk
+    assert response.data["created_by"]["id"] == owner.pk
+
+@pytest.mark.django_db
+def test_outsider_cannot_retrieve_task_detail():
+    owner = User.objects.create_user(
+        username="owner_private_task_detail",
+        email="owner_private_task_detail@example.com",
+        password="Password123!",
+    )
+
+    outsider = User.objects.create_user(
+        username="outsider_task_detail",
+        email="outsider_task_detail@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo tarea privada",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto tarea privada",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea privada",
+        description="Solo miembros del equipo pueden verla.",
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=outsider)
+
+    response = client.get(
+        reverse(
+            "tasks:task-detail",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+                "pk": task.pk,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert "detail" in response.data
+
+def test_unauthenticated_user_cannot_retrieve_task_detail():
+    client = APIClient()
+
+    response = client.get(
+        reverse(
+            "tasks:task-detail",
+            kwargs={
+                "team_id": 1,
+                "project_id": 1,
+                "pk": 1,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+@pytest.mark.django_db
+def test_team_owner_can_update_task():
+    owner = User.objects.create_user(
+        username="owner_update_task",
+        email="owner_update_task@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="member_assigned_update_task",
+        email="member_assigned_update_task@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo actualización tarea owner",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto actualización tarea owner",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea original",
+        description="Descripción original.",
+        status=Task.Status.TODO,
+        priority=Task.Priority.MEDIUM,
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.patch(
+        reverse(
+            "tasks:task-detail",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+                "pk": task.pk,
+            },
+        ),
+        {
+            "title": "   Tarea    actualizada   ",
+            "description": "Descripción actualizada.",
+            "status": Task.Status.IN_PROGRESS,
+            "priority": Task.Priority.HIGH,
+            "assigned_to": member.pk,
+            "due_date": "2026-08-30",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert response.data["title"] == "Tarea actualizada"
+    assert response.data["description"] == "Descripción actualizada."
+    assert response.data["status"] == Task.Status.IN_PROGRESS
+    assert response.data["priority"] == Task.Priority.HIGH
+    assert response.data["assigned_to"] == member.pk
+    assert response.data["project"] == project.pk
+    assert response.data["created_by"]["id"] == owner.pk
+    assert response.data["due_date"] == "2026-08-30"
+
+    task.refresh_from_db()
+
+    assert task.title == "Tarea actualizada"
+    assert task.description == "Descripción actualizada."
+    assert task.status == Task.Status.IN_PROGRESS
+    assert task.priority == Task.Priority.HIGH
+    assert task.assigned_to == member
+    assert task.project == project
+    assert task.created_by == owner
+
+@pytest.mark.django_db
+def test_team_admin_can_update_task():
+    owner = User.objects.create_user(
+        username="owner_admin_update_task",
+        email="owner_admin_update_task@example.com",
+        password="Password123!",
+    )
+
+    admin = User.objects.create_user(
+        username="admin_update_task",
+        email="admin_update_task@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="member_assigned_by_admin",
+        email="member_assigned_by_admin@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo actualización tarea admin",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=admin,
+        role=Membership.Role.ADMIN,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto actualización tarea admin",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea administrable",
+        description="Descripción original.",
+        status=Task.Status.TODO,
+        priority=Task.Priority.LOW,
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    response = client.patch(
+        reverse(
+            "tasks:task-detail",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+                "pk": task.pk,
+            },
+        ),
+        {
+            "title": "Tarea modificada por admin",
+            "status": Task.Status.IN_PROGRESS,
+            "priority": Task.Priority.HIGH,
+            "assigned_to": member.pk,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert response.data["title"] == "Tarea modificada por admin"
+    assert response.data["status"] == Task.Status.IN_PROGRESS
+    assert response.data["priority"] == Task.Priority.HIGH
+    assert response.data["assigned_to"] == member.pk
+
+    assert response.data["project"] == project.pk
+    assert response.data["created_by"]["id"] == owner.pk
+
+    task.refresh_from_db()
+
+    assert task.title == "Tarea modificada por admin"
+    assert task.status == Task.Status.IN_PROGRESS
+    assert task.priority == Task.Priority.HIGH
+    assert task.assigned_to == member
+
+    assert task.project == project
+    assert task.created_by == owner
+
+@pytest.mark.django_db
+def test_unassigned_team_member_cannot_update_task():
+    owner = User.objects.create_user(
+        username="owner_unassigned_member_task",
+        email="owner_unassigned_member_task@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="unassigned_member_task",
+        email="unassigned_member_task@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo tarea member no asignado",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto tarea protegida",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea protegida",
+        status=Task.Status.TODO,
+        priority=Task.Priority.MEDIUM,
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=member)
+
+    response = client.patch(
+        reverse(
+            "tasks:task-detail",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+                "pk": task.pk,
+            },
+        ),
+        {
+            "status": Task.Status.IN_PROGRESS,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    task.refresh_from_db()
+
+    assert task.status == Task.Status.TODO
+    assert task.priority == Task.Priority.MEDIUM
+
+@pytest.mark.django_db
+def test_assigned_team_member_can_update_task_status():
+    owner = User.objects.create_user(
+        username="owner_assigned_member_status",
+        email="owner_assigned_member_status@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="assigned_member_status",
+        email="assigned_member_status@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo cambio estado asignado",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto estado asignado",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea asignada",
+        description="El miembro puede cambiar su estado.",
+        status=Task.Status.TODO,
+        priority=Task.Priority.HIGH,
+        assigned_to=member,
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=member)
+
+    response = client.patch(
+        reverse(
+            "tasks:task-detail",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+                "pk": task.pk,
+            },
+        ),
+        {
+            "status": Task.Status.IN_PROGRESS,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert response.data["status"] == Task.Status.IN_PROGRESS
+    assert response.data["assigned_to"] == member.pk
+    assert response.data["priority"] == Task.Priority.HIGH
+
+    task.refresh_from_db()
+
+    assert task.status == Task.Status.IN_PROGRESS
+    assert task.assigned_to == member
+    assert task.priority == Task.Priority.HIGH
+
+    
