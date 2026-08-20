@@ -1669,3 +1669,326 @@ def test_project_task_filter_rejects_invalid_status():
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert "status" in response.data
 
+@pytest.mark.django_db
+def test_project_tasks_can_be_searched_by_title():
+    owner = User.objects.create_user(
+        username="owner_search_task_title",
+        email="owner_search_task_title@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo búsqueda título",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto búsqueda título",
+        created_by=owner,
+    )
+
+    matching_task = Task.objects.create(
+        project=project,
+        title="Implementar autenticación JWT",
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Diseñar dashboard",
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "tasks:project-task-list-create",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+            },
+        ),
+        {
+            "search": "autenticación",
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert len(response.data) == 1
+
+    assert response.data[0]["id"] == matching_task.pk
+
+@pytest.mark.django_db
+def test_project_tasks_can_be_searched_by_description():
+    owner = User.objects.create_user(
+        username="owner_search_task_description",
+        email="owner_search_task_description@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo búsqueda descripción",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto búsqueda descripción",
+        created_by=owner,
+    )
+
+    matching_task = Task.objects.create(
+        project=project,
+        title="Configurar servidor",
+        description="Preparar despliegue utilizando Docker.",
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Crear documentación",
+        description="Documentar endpoints REST.",
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "tasks:project-task-list-create",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+            },
+        ),
+        {
+            "search": "Docker",
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert len(response.data) == 1
+
+    assert response.data[0]["id"] == matching_task.pk
+
+@pytest.mark.django_db
+def test_project_task_search_is_partial_and_case_insensitive():
+    owner = User.objects.create_user(
+        username="owner_partial_task_search",
+        email="owner_partial_task_search@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo búsqueda parcial",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto búsqueda parcial",
+        created_by=owner,
+    )
+
+    matching_task = Task.objects.create(
+        project=project,
+        title="Configurar PostgreSQL",
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Configurar Redis",
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "tasks:project-task-list-create",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+            },
+        ),
+        {
+            "search": "postgres",
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert len(response.data) == 1
+
+    assert response.data[0]["id"] == matching_task.pk
+
+@pytest.mark.django_db
+def test_project_tasks_can_be_ordered_by_due_date():
+    owner = User.objects.create_user(
+        username="owner_order_tasks_due_date",
+        email="owner_order_tasks_due_date@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo orden fecha límite",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto orden fecha límite",
+        created_by=owner,
+    )
+
+    last_task = Task.objects.create(
+        project=project,
+        title="Tarea para septiembre",
+        due_date="2026-09-10",
+        created_by=owner,
+    )
+
+    first_task = Task.objects.create(
+        project=project,
+        title="Tarea más próxima",
+        due_date="2026-08-25",
+        created_by=owner,
+    )
+
+    middle_task = Task.objects.create(
+        project=project,
+        title="Tarea intermedia",
+        due_date="2026-09-01",
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "tasks:project-task-list-create",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+            },
+        ),
+        {
+            "ordering": "due_date",
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    returned_ids = [
+        task["id"]
+        for task in response.data
+    ]
+
+    assert returned_ids == [
+        first_task.pk,
+        middle_task.pk,
+        last_task.pk,
+    ]
+
+@pytest.mark.django_db
+def test_project_tasks_can_be_ordered_by_created_at_descending():
+    owner = User.objects.create_user(
+        username="owner_order_tasks_created",
+        email="owner_order_tasks_created@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo orden creación",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto orden creación",
+        created_by=owner,
+    )
+
+    first_task = Task.objects.create(
+        project=project,
+        title="Primera tarea creada",
+        created_by=owner,
+    )
+
+    second_task = Task.objects.create(
+        project=project,
+        title="Segunda tarea creada",
+        created_by=owner,
+    )
+
+    third_task = Task.objects.create(
+        project=project,
+        title="Tercera tarea creada",
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "tasks:project-task-list-create",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+            },
+        ),
+        {
+            "ordering": "-created_at",
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    returned_ids = [
+        task["id"]
+        for task in response.data
+    ]
+
+    assert returned_ids == [
+        third_task.pk,
+        second_task.pk,
+        first_task.pk,
+    ]
+

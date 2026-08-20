@@ -2,6 +2,7 @@ from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, permissions
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.filters import OrderingFilter, SearchFilter
 
 from apps.projects.models import Project
 from apps.teams.models import Membership
@@ -21,12 +22,24 @@ class ProjectTaskListCreateView(
 
     filter_backends = (
         DjangoFilterBackend,
+        SearchFilter,
+        OrderingFilter,
     )
 
     filterset_fields =(
         "status",
         "priority",
         "assigned_to",
+    )
+
+    search_fields =(
+        "title",
+        "description",
+    )
+
+    ordering_fields =(
+        "due_date",
+        "created_at",
     )
 
     def get_project(self):
