@@ -367,11 +367,12 @@ def test_team_member_can_list_project_tasks():
     )
 
     assert response.status_code == status.HTTP_200_OK
-    assert len(response.data) == 2
+    assert response.data["count"] == 2
+    assert len(response.data["results"]) == 2
 
     returned_ids = {
         task["id"]
-        for task in response.data
+        for task in response.data["results"]
     }
 
     assert first_task.id in returned_ids
@@ -434,14 +435,15 @@ def test_task_list_only_returns_tasks_from_requested_project():
     )
 
     assert response.status_code == status.HTTP_200_OK
-    assert len(response.data) == 1
+    assert response.data["count"] == 1
+    assert len(response.data["results"]) == 1
 
-    assert response.data[0]["id"] == first_task.id
-    assert response.data[0]["project"] == first_project.id
+    assert response.data["results"][0]["id"] == first_task.pk
+    assert response.data["results"][0]["project"] == first_project.pk
 
     returned_ids = {
         task["id"]
-        for task in response.data
+        for task in response.data["results"]
     }
 
     assert second_task.id not in returned_ids
@@ -1380,11 +1382,14 @@ def test_project_tasks_can_be_filtered_by_status():
 
     assert response.status_code == status.HTTP_200_OK
 
-    assert len(response.data) == 1
+    assert response.data["count"] == 1
+    assert len(response.data["results"]) == 1
 
-    assert response.data[0]["id"] == todo_task.pk
-    assert response.data[0]["title"] == "Tarea pendiente"
-    assert response.data[0]["status"] == Task.Status.TODO
+    task_data = response.data["results"][0]
+
+    assert task_data["id"] == todo_task.pk
+    assert task_data["title"] == "Tarea pendiente"
+    assert task_data["status"] == Task.Status.TODO
 
 @pytest.mark.django_db
 def test_project_tasks_can_be_filtered_by_priority():
@@ -1449,10 +1454,14 @@ def test_project_tasks_can_be_filtered_by_priority():
     )
 
     assert response.status_code == status.HTTP_200_OK
-    assert len(response.data) == 1
 
-    assert response.data[0]["id"] == high_priority_task.pk
-    assert response.data[0]["priority"] == Task.Priority.HIGH
+    assert response.data["count"] == 1
+    assert len(response.data["results"]) == 1
+
+    task_data = response.data["results"][0]
+
+    assert task_data["id"] == high_priority_task.pk
+    assert task_data["priority"] == Task.Priority.HIGH
 
 @pytest.mark.django_db
 def test_project_tasks_can_be_filtered_by_assigned_user():
@@ -1540,10 +1549,14 @@ def test_project_tasks_can_be_filtered_by_assigned_user():
     )
 
     assert response.status_code == status.HTTP_200_OK
-    assert len(response.data) == 1
 
-    assert response.data[0]["id"] == first_member_task.pk
-    assert response.data[0]["assigned_to"] == first_member.pk
+    assert response.data["count"] == 1
+    assert len(response.data["results"]) == 1
+
+    task_data = response.data["results"][0]
+
+    assert task_data["id"] == first_member_task.pk
+    assert task_data["assigned_to"] == first_member.pk
 
 @pytest.mark.django_db
 def test_project_tasks_can_be_filtered_by_status_and_priority():
@@ -1612,11 +1625,15 @@ def test_project_tasks_can_be_filtered_by_status_and_priority():
     )
 
     assert response.status_code == status.HTTP_200_OK
-    assert len(response.data) == 1
 
-    assert response.data[0]["id"] == matching_task.pk
-    assert response.data[0]["status"] == Task.Status.TODO
-    assert response.data[0]["priority"] == Task.Priority.HIGH
+    assert response.data["count"] == 1
+    assert len(response.data["results"]) == 1
+
+    task_data = response.data["results"][0]
+
+    assert task_data["id"] == matching_task.pk
+    assert task_data["status"] == Task.Status.TODO
+    assert task_data["priority"] == Task.Priority.HIGH
 
 @pytest.mark.django_db
 def test_project_task_filter_rejects_invalid_status():
@@ -1723,9 +1740,11 @@ def test_project_tasks_can_be_searched_by_title():
     )
 
     assert response.status_code == status.HTTP_200_OK
-    assert len(response.data) == 1
 
-    assert response.data[0]["id"] == matching_task.pk
+    assert response.data["count"] == 1
+    assert len(response.data["results"]) == 1
+
+    assert response.data["results"][0]["id"] == matching_task.pk
 
 @pytest.mark.django_db
 def test_project_tasks_can_be_searched_by_description():
@@ -1783,9 +1802,11 @@ def test_project_tasks_can_be_searched_by_description():
     )
 
     assert response.status_code == status.HTTP_200_OK
-    assert len(response.data) == 1
 
-    assert response.data[0]["id"] == matching_task.pk
+    assert response.data["count"] == 1
+    assert len(response.data["results"]) == 1
+
+    assert response.data["results"][0]["id"] == matching_task.pk
 
 @pytest.mark.django_db
 def test_project_task_search_is_partial_and_case_insensitive():
@@ -1841,9 +1862,11 @@ def test_project_task_search_is_partial_and_case_insensitive():
     )
 
     assert response.status_code == status.HTTP_200_OK
-    assert len(response.data) == 1
 
-    assert response.data[0]["id"] == matching_task.pk
+    assert response.data["count"] == 1
+    assert len(response.data["results"]) == 1
+
+    assert response.data["results"][0]["id"] == matching_task.pk
 
 @pytest.mark.django_db
 def test_project_tasks_can_be_ordered_by_due_date():
@@ -1908,10 +1931,11 @@ def test_project_tasks_can_be_ordered_by_due_date():
     )
 
     assert response.status_code == status.HTTP_200_OK
+    assert response.data["count"] == 3
 
     returned_ids = [
         task["id"]
-        for task in response.data
+        for task in response.data["results"]
     ]
 
     assert returned_ids == [
@@ -1980,10 +2004,11 @@ def test_project_tasks_can_be_ordered_by_created_at_descending():
     )
 
     assert response.status_code == status.HTTP_200_OK
+    assert response.data["count"] == 3
 
     returned_ids = [
         task["id"]
-        for task in response.data
+        for task in response.data["results"]
     ]
 
     assert returned_ids == [
@@ -1991,4 +2016,220 @@ def test_project_tasks_can_be_ordered_by_created_at_descending():
         second_task.pk,
         first_task.pk,
     ]
+
+@pytest.mark.django_db
+def test_project_task_list_is_paginated():
+    owner = User.objects.create_user(
+        username="owner_paginated_tasks",
+        email="owner_paginated_tasks@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo paginación",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto paginación",
+        created_by=owner,
+    )
+
+    for index in range(12):
+        Task.objects.create(
+            project=project,
+            title=f"Tarea {index + 1}",
+            created_by=owner,
+        )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "tasks:project-task-list-create",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert response.data["count"] == 12
+    assert len(response.data["results"]) == 10
+    assert response.data["next"] is not None
+    assert response.data["previous"] is None
+
+@pytest.mark.django_db
+def test_project_task_list_can_return_second_page():
+    owner = User.objects.create_user(
+        username="owner_second_task_page",
+        email="owner_second_task_page@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo segunda página",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto segunda página",
+        created_by=owner,
+    )
+
+    for index in range(12):
+        Task.objects.create(
+            project=project,
+            title=f"Tarea paginada {index + 1}",
+            created_by=owner,
+        )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "tasks:project-task-list-create",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+            },
+        ),
+        {
+            "page": 2,
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert response.data["count"] == 12
+    assert len(response.data["results"]) == 2
+
+    assert response.data["next"] is None
+    assert response.data["previous"] is not None
+
+@pytest.mark.django_db
+def test_project_task_list_accepts_custom_page_size():
+    owner = User.objects.create_user(
+        username="owner_custom_page_size",
+        email="owner_custom_page_size@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo tamaño página",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto tamaño página",
+        created_by=owner,
+    )
+
+    for index in range(8):
+        Task.objects.create(
+            project=project,
+            title=f"Tarea tamaño {index + 1}",
+            created_by=owner,
+        )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "tasks:project-task-list-create",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+            },
+        ),
+        {
+            "page_size": 3,
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert response.data["count"] == 8
+    assert len(response.data["results"]) == 3
+    assert response.data["next"] is not None
+
+@pytest.mark.django_db
+def test_project_task_page_size_is_limited_to_maximum():
+    owner = User.objects.create_user(
+        username="owner_max_page_size",
+        email="owner_max_page_size@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo máximo paginación",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto máximo paginación",
+        created_by=owner,
+    )
+
+    for index in range(55):
+        Task.objects.create(
+            project=project,
+            title=f"Tarea límite {index + 1}",
+            created_by=owner,
+        )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "tasks:project-task-list-create",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+            },
+        ),
+        {
+            "page_size": 1000,
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert response.data["count"] == 55
+    assert len(response.data["results"]) == 50
+    assert response.data["next"] is not None
 

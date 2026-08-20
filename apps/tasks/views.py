@@ -10,6 +10,7 @@ from apps.teams.models import Membership
 from .models import Task
 from .serializers import TaskSerializer
 from .permissions import CanAccessTask
+from .pagination import TaskPagination
 
 
 class ProjectTaskListCreateView(
@@ -19,6 +20,8 @@ class ProjectTaskListCreateView(
     permission_classes = (
         permissions.IsAuthenticated,
     )
+
+    pagination_class = TaskPagination
 
     filter_backends = (
         DjangoFilterBackend,
