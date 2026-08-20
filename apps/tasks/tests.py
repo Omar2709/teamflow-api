@@ -1076,4 +1076,243 @@ def test_assigned_team_member_can_update_task_status():
     assert task.assigned_to == member
     assert task.priority == Task.Priority.HIGH
 
-    
+@pytest.mark.django_db
+def test_assigned_team_member_cannot_update_restricted_task_fields():
+    owner = User.objects.create_user(
+        username="owner_restricted_task_fields",
+        email="owner_restricted_task_fields@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="assigned_member_restricted_fields",
+        email="assigned_member_restricted_fields@example.com",
+        password="Password123!",
+    )
+
+    other_member = User.objects.create_user(
+        username="other_member_restricted_fields",
+        email="other_member_restricted_fields@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo campos restringidos tarea",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=other_member,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto campos restringidos",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea con campos protegidos",
+        status=Task.Status.TODO,
+        priority=Task.Priority.MEDIUM,
+        assigned_to=member,
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=member)
+
+    response = client.patch(
+        reverse(
+            "tasks:task-detail",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+                "pk": task.pk,
+            },
+        ),
+        {
+            "priority": Task.Priority.HIGH,
+            "assigned_to": other_member.pk,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    task.refresh_from_db()
+
+    assert task.priority == Task.Priority.MEDIUM
+    assert task.assigned_to == member
+    assert task.status == Task.Status.TODO
+
+@pytest.mark.django_db
+def test_task_cannot_be_assigned_to_user_outside_team():
+    owner = User.objects.create_user(
+        username="owner_invalid_task_assignment",
+        email="owner_invalid_task_assignment@example.com",
+        password="Password123!",
+    )
+
+    outsider = User.objects.create_user(
+        username="outsider_invalid_task_assignment",
+        email="outsider_invalid_task_assignment@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo asignación protegida",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto asignación protegida",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea sin asignar",
+        status=Task.Status.TODO,
+        priority=Task.Priority.MEDIUM,
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.patch(
+        reverse(
+            "tasks:task-detail",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+                "pk": task.pk,
+            },
+        ),
+        {
+            "assigned_to": outsider.pk,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "assigned_to" in response.data
+
+    task.refresh_from_db()
+
+    assert task.assigned_to is None
+
+@pytest.mark.django_db
+def test_team_owner_and_admin_can_delete_tasks():
+    owner = User.objects.create_user(
+        username="owner_delete_tasks",
+        email="owner_delete_tasks@example.com",
+        password="Password123!",
+    )
+
+    admin = User.objects.create_user(
+        username="admin_delete_tasks",
+        email="admin_delete_tasks@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo eliminación tareas",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=admin,
+        role=Membership.Role.ADMIN,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto eliminación tareas",
+        created_by=owner,
+    )
+
+    owner_task = Task.objects.create(
+        project=project,
+        title="Tarea eliminable por owner",
+        created_by=owner,
+    )
+
+    admin_task = Task.objects.create(
+        project=project,
+        title="Tarea eliminable por admin",
+        created_by=owner,
+    )
+
+    owner_client = APIClient()
+    owner_client.force_authenticate(user=owner)
+
+    owner_response = owner_client.delete(
+        reverse(
+            "tasks:task-detail",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+                "pk": owner_task.pk,
+            },
+        )
+    )
+
+    assert owner_response.status_code == status.HTTP_204_NO_CONTENT
+    assert not Task.objects.filter(
+        pk=owner_task.pk,
+    ).exists()
+
+    assert Task.objects.filter(
+        pk=admin_task.pk,
+    ).exists()
+
+    admin_client = APIClient()
+    admin_client.force_authenticate(user=admin)
+
+    admin_response = admin_client.delete(
+        reverse(
+            "tasks:task-detail",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+                "pk": admin_task.pk,
+            },
+        )
+    )
+
+    assert admin_response.status_code == status.HTTP_204_NO_CONTENT
+    assert not Task.objects.filter(
+        pk=admin_task.pk,
+    ).exists()
+
