@@ -1316,3 +1316,356 @@ def test_team_owner_and_admin_can_delete_tasks():
         pk=admin_task.pk,
     ).exists()
 
+@pytest.mark.django_db
+def test_project_tasks_can_be_filtered_by_status():
+    owner = User.objects.create_user(
+        username="owner_filter_tasks_status",
+        email="owner_filter_tasks_status@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo filtro estado tareas",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto filtro estado",
+        created_by=owner,
+    )
+
+    todo_task = Task.objects.create(
+        project=project,
+        title="Tarea pendiente",
+        status=Task.Status.TODO,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Tarea en progreso",
+        status=Task.Status.IN_PROGRESS,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Tarea completada",
+        status=Task.Status.DONE,
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "tasks:project-task-list-create",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+            },
+        ),
+        {
+            "status": Task.Status.TODO,
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert len(response.data) == 1
+
+    assert response.data[0]["id"] == todo_task.pk
+    assert response.data[0]["title"] == "Tarea pendiente"
+    assert response.data[0]["status"] == Task.Status.TODO
+
+@pytest.mark.django_db
+def test_project_tasks_can_be_filtered_by_priority():
+    owner = User.objects.create_user(
+        username="owner_filter_tasks_priority",
+        email="owner_filter_tasks_priority@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo filtro prioridad",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto filtro prioridad",
+        created_by=owner,
+    )
+
+    high_priority_task = Task.objects.create(
+        project=project,
+        title="Tarea prioridad alta",
+        priority=Task.Priority.HIGH,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Tarea prioridad media",
+        priority=Task.Priority.MEDIUM,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Tarea prioridad baja",
+        priority=Task.Priority.LOW,
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "tasks:project-task-list-create",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+            },
+        ),
+        {
+            "priority": Task.Priority.HIGH,
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert len(response.data) == 1
+
+    assert response.data[0]["id"] == high_priority_task.pk
+    assert response.data[0]["priority"] == Task.Priority.HIGH
+
+@pytest.mark.django_db
+def test_project_tasks_can_be_filtered_by_assigned_user():
+    owner = User.objects.create_user(
+        username="owner_filter_assigned_tasks",
+        email="owner_filter_assigned_tasks@example.com",
+        password="Password123!",
+    )
+
+    first_member = User.objects.create_user(
+        username="first_member_filter_tasks",
+        email="first_member_filter_tasks@example.com",
+        password="Password123!",
+    )
+
+    second_member = User.objects.create_user(
+        username="second_member_filter_tasks",
+        email="second_member_filter_tasks@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo filtro asignación",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=first_member,
+        role=Membership.Role.MEMBER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=second_member,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto filtro asignación",
+        created_by=owner,
+    )
+
+    first_member_task = Task.objects.create(
+        project=project,
+        title="Tarea del primer miembro",
+        assigned_to=first_member,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Tarea del segundo miembro",
+        assigned_to=second_member,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Tarea sin asignar",
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "tasks:project-task-list-create",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+            },
+        ),
+        {
+            "assigned_to": first_member.pk,
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert len(response.data) == 1
+
+    assert response.data[0]["id"] == first_member_task.pk
+    assert response.data[0]["assigned_to"] == first_member.pk
+
+@pytest.mark.django_db
+def test_project_tasks_can_be_filtered_by_status_and_priority():
+    owner = User.objects.create_user(
+        username="owner_combined_task_filters",
+        email="owner_combined_task_filters@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo filtros combinados",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto filtros combinados",
+        created_by=owner,
+    )
+
+    matching_task = Task.objects.create(
+        project=project,
+        title="Pendiente y urgente",
+        status=Task.Status.TODO,
+        priority=Task.Priority.HIGH,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Pendiente normal",
+        status=Task.Status.TODO,
+        priority=Task.Priority.MEDIUM,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Urgente completada",
+        status=Task.Status.DONE,
+        priority=Task.Priority.HIGH,
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "tasks:project-task-list-create",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+            },
+        ),
+        {
+            "status": Task.Status.TODO,
+            "priority": Task.Priority.HIGH,
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert len(response.data) == 1
+
+    assert response.data[0]["id"] == matching_task.pk
+    assert response.data[0]["status"] == Task.Status.TODO
+    assert response.data[0]["priority"] == Task.Priority.HIGH
+
+@pytest.mark.django_db
+def test_project_task_filter_rejects_invalid_status():
+    owner = User.objects.create_user(
+        username="owner_invalid_status_filter",
+        email="owner_invalid_status_filter@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo filtro estado inválido",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto filtro inválido",
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Tarea existente",
+        status=Task.Status.TODO,
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "tasks:project-task-list-create",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+            },
+        ),
+        {
+            "status": "cancelled",
+        },
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "status" in response.data
+

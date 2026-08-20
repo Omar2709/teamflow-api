@@ -1,4 +1,5 @@
 from django.shortcuts import get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, permissions
 from rest_framework.exceptions import PermissionDenied
 
@@ -16,6 +17,16 @@ class ProjectTaskListCreateView(
     serializer_class = TaskSerializer
     permission_classes = (
         permissions.IsAuthenticated,
+    )
+
+    filter_backends = (
+        DjangoFilterBackend,
+    )
+
+    filterset_fields =(
+        "status",
+        "priority",
+        "assigned_to",
     )
 
     def get_project(self):
