@@ -6,6 +6,7 @@ from apps.tasks.models import Task
 from .models import Comment
 from .serializers import CommentSerializer
 from .permissions import CanAccessComment
+from .pagination import CommentPagination
 
 
 class TaskCommentListCreateView(
@@ -16,6 +17,8 @@ class TaskCommentListCreateView(
     permission_classes = (
         permissions.IsAuthenticated,
     )
+
+    pagination_class = CommentPagination
 
     def get_task(self):
         if not hasattr(self, "_task"):

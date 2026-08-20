@@ -156,10 +156,12 @@ def test_team_member_can_list_task_comments():
     )
 
     assert response.status_code == status.HTTP_200_OK
-    assert len(response.data) == 2
 
-    assert response.data[0]["id"] == first_comment.pk
-    assert response.data[1]["id"] == second_comment.pk
+    assert response.data["count"] == 2
+    assert len(response.data["results"]) == 2
+
+    assert response.data["results"][0]["id"] == first_comment.pk
+    assert response.data["results"][1]["id"] == second_comment.pk
 
 @pytest.mark.django_db
 def test_comment_list_only_returns_comments_from_requested_task():
@@ -225,13 +227,15 @@ def test_comment_list_only_returns_comments_from_requested_task():
     )
 
     assert response.status_code == status.HTTP_200_OK
-    assert len(response.data) == 1
 
-    assert response.data[0]["id"] == first_comment.pk
+    assert response.data["count"] == 1
+    assert len(response.data["results"]) == 1
+
+    assert response.data["results"][0]["id"] == first_comment.pk
 
     returned_ids = {
         comment["id"]
-        for comment in response.data
+        for comment in response.data["results"]
     }
 
     assert second_comment.pk not in returned_ids
@@ -809,4 +813,249 @@ def test_outsider_cannot_retrieve_comment_detail():
     )
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
+
+@pytest.mark.django_db
+def test_task_comment_list_is_paginated():
+    owner = User.objects.create_user(
+        username="owner_paginated_comments",
+        email="owner_paginated_comments@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo paginación comentarios",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto paginación comentarios",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea paginación comentarios",
+        created_by=owner,
+    )
+
+    for index in range(12):
+        Comment.objects.create(
+            task=task,
+            author=owner,
+            content=f"Comentario {index + 1}",
+        )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "comments:task-comment-list-create",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+                "task_id": task.pk,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert response.data["count"] == 12
+    assert len(response.data["results"]) == 10
+
+    assert response.data["next"] is not None
+    assert response.data["previous"] is None
+
+@pytest.mark.django_db
+def test_task_comment_list_can_return_second_page():
+    owner = User.objects.create_user(
+        username="owner_second_comment_page",
+        email="owner_second_comment_page@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo segunda página comentarios",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto segunda página comentarios",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea segunda página comentarios",
+        created_by=owner,
+    )
+
+    for index in range(12):
+        Comment.objects.create(
+            task=task,
+            author=owner,
+            content=f"Comentario paginado {index + 1}",
+        )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "comments:task-comment-list-create",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+                "task_id": task.pk,
+            },
+        ),
+        {
+            "page": 2,
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert response.data["count"] == 12
+    assert len(response.data["results"]) == 2
+
+    assert response.data["next"] is None
+    assert response.data["previous"] is not None
+
+@pytest.mark.django_db
+def test_task_comment_list_accepts_custom_page_size():
+    owner = User.objects.create_user(
+        username="owner_comment_page_size",
+        email="owner_comment_page_size@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo tamaño página comentarios",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto tamaño página comentarios",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea tamaño página comentarios",
+        created_by=owner,
+    )
+
+    for index in range(8):
+        Comment.objects.create(
+            task=task,
+            author=owner,
+            content=f"Comentario tamaño {index + 1}",
+        )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "comments:task-comment-list-create",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+                "task_id": task.pk,
+            },
+        ),
+        {
+            "page_size": 3,
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert response.data["count"] == 8
+    assert len(response.data["results"]) == 3
+    assert response.data["next"] is not None
+
+@pytest.mark.django_db
+def test_task_comment_page_size_is_limited_to_maximum():
+    owner = User.objects.create_user(
+        username="owner_comment_max_page_size",
+        email="owner_comment_max_page_size@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo máximo comentarios",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto máximo comentarios",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea máximo comentarios",
+        created_by=owner,
+    )
+
+    for index in range(55):
+        Comment.objects.create(
+            task=task,
+            author=owner,
+            content=f"Comentario límite {index + 1}",
+        )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "comments:task-comment-list-create",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+                "task_id": task.pk,
+            },
+        ),
+        {
+            "page_size": 1000,
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert response.data["count"] == 55
+    assert len(response.data["results"]) == 50
+    assert response.data["next"] is not None
 
