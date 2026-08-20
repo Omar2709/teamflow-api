@@ -22,4 +22,8 @@ urlpatterns = [
         "api/",
         include("apps.tasks.urls"),
     ),
+    path(
+        "api/",
+        include("apps.comments.urls"),
+    )
 ]

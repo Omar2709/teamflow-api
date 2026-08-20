@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "apps.teams.apps.TeamsConfig",
     "apps.projects.apps.ProjectsConfig",
     "apps.tasks.apps.TasksConfig",
+    "apps.comments.apps.CommentsConfig",
 ]
 
 MIDDLEWARE = [
