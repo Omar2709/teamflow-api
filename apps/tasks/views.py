@@ -1,9 +1,13 @@
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
+from django.db import transaction
 from rest_framework import generics, permissions
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.filters import OrderingFilter, SearchFilter
 
+from apps.notifications.services import (
+    create_task_assignment_notification,
+)
 from apps.projects.models import Project
 from apps.teams.models import Membership
 
@@ -105,10 +109,16 @@ class ProjectTaskListCreateView(
             **kwargs,
         )
 
+    @transaction.atomic
     def perform_create(self, serializer):
-        serializer.save(
+        task = serializer.save(
             project=self.get_project(),
             created_by=self.request.user,
+        )
+
+        create_task_assignment_notification(
+            task=task,
+            actor=self.request.user,
         )
 
 
@@ -200,3 +210,17 @@ class TaskDetailView(
         context["team"] = project.team
 
         return context
+
+    @transaction.atomic
+    def perform_update(self, serializer):
+        previous_assignee_id = (
+            serializer.instance.assigned_to_id
+        )
+
+        task = serializer.save()
+
+        create_task_assignment_notification(
+            task=task,
+            actor=self.request.user,
+            previous_assignee_id=previous_assignee_id,
+        )
