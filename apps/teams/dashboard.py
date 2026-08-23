@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -8,7 +10,7 @@ from rest_framework.views import APIView
 from apps.projects.models import Project
 from apps.tasks.models import Task
 
-from .models import Team
+from .models import Membership, Team
 
 
 class TeamDashboardView(APIView):
@@ -25,6 +27,11 @@ class TeamDashboardView(APIView):
         )
 
         today = timezone.localdate()
+        due_soon_limit = today + timedelta(days=7)
+
+        member_count = Membership.objects.filter(
+            team=team,
+        ).count()
 
         tasks = Task.objects.filter(
             project__team=team,
@@ -57,6 +64,24 @@ class TeamDashboardView(APIView):
                     & ~Q(
                         status=Task.Status.DONE,
                     )
+                ),
+            ),
+            due_soon=Count(
+                "pk",
+                filter=(
+                    Q(
+                        due_date__gt=today,
+                        due_date__lte=due_soon_limit,
+                    )
+                    & ~Q(
+                        status=Task.Status.DONE,
+                    )
+                ),
+            ),
+            unassigned=Count(
+                "pk",
+                filter=Q(
+                    assigned_to__isnull=True,
                 ),
             ),
             low=Count(
@@ -112,6 +137,18 @@ class TeamDashboardView(APIView):
                     )
                 ),
             ),
+            due_soon=Count(
+                "pk",
+                filter=(
+                    Q(
+                        due_date__gt=today,
+                        due_date__lte=due_soon_limit,
+                    )
+                    & ~Q(
+                        status=Task.Status.DONE,
+                    )
+                ),
+            ),
         )
 
         projects = list(
@@ -150,7 +187,9 @@ class TeamDashboardView(APIView):
                 "tasks": {
                     "total": project.task_total,
                     "todo": project.task_todo,
-                    "in_progress": project.task_in_progress,
+                    "in_progress": (
+                        project.task_in_progress
+                    ),
                     "done": project.task_done,
                 },
             }
@@ -162,6 +201,7 @@ class TeamDashboardView(APIView):
                 "team": {
                     "id": team.pk,
                     "name": team.name,
+                    "members": member_count,
                 },
                 "projects": {
                     "total": len(projects),
