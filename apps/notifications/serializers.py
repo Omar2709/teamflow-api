@@ -1,0 +1,27 @@
+from rest_framework import serializers
+
+from .models import Notification
+
+
+class NotificationSerializer(
+    serializers.ModelSerializer
+):
+    task = serializers.IntegerField(
+        source="task_id",
+        read_only=True,
+    )
+
+    class Meta:
+        model = Notification
+
+        fields = (
+            "id",
+            "type",
+            "message",
+            "task",
+            "is_read",
+            "read_at",
+            "created_at",
+        )
+
+        read_only_fields = fields

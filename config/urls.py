@@ -25,5 +25,9 @@ urlpatterns = [
     path(
         "api/",
         include("apps.comments.urls"),
-    )
+    ),
+    path(
+        "api/",
+        include("apps.notifications.urls"),
+    ),
 ]
