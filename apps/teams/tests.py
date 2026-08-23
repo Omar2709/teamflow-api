@@ -3,6 +3,10 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
+from datetime import timedelta
+from django.utils import timezone
+from apps.projects.models import Project
+from apps.tasks.models import Task
 
 from .models import Membership, Team
 
@@ -2473,4 +2477,280 @@ def test_unauthenticated_user_cannot_transfer_team_ownership():
     )
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+@pytest.mark.django_db
+def test_team_member_can_retrieve_team_dashboard():
+    owner = User.objects.create_user(
+        username="owner_dashboard_access",
+        email="owner_dashboard_access@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="member_dashboard_access",
+        email="member_dashboard_access@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo Dashboard",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=member)
+
+    response = client.get(
+        reverse(
+            "teams:team-dashboard",
+            kwargs={
+                "team_id": team.pk,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert response.data["team"]["id"] == team.pk
+    assert response.data["team"]["name"] == "Equipo Dashboard"
+
+@pytest.mark.django_db
+def test_team_dashboard_returns_project_count():
+    owner = User.objects.create_user(
+        username="owner_dashboard_projects",
+        email="owner_dashboard_projects@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo métricas proyectos",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    for index in range(3):
+        Project.objects.create(
+            team=team,
+            name=f"Proyecto Dashboard {index + 1}",
+            created_by=owner,
+        )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "teams:team-dashboard",
+            kwargs={
+                "team_id": team.pk,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["projects"]["total"] == 3
+
+@pytest.mark.django_db
+def test_team_dashboard_returns_task_counts_by_status():
+    owner = User.objects.create_user(
+        username="owner_dashboard_status",
+        email="owner_dashboard_status@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo métricas estados",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto métricas estados",
+        created_by=owner,
+    )
+
+    for index in range(3):
+        Task.objects.create(
+            project=project,
+            title=f"Pendiente {index + 1}",
+            status=Task.Status.TODO,
+            created_by=owner,
+        )
+
+    for index in range(2):
+        Task.objects.create(
+            project=project,
+            title=f"En progreso {index + 1}",
+            status=Task.Status.IN_PROGRESS,
+            created_by=owner,
+        )
+
+    Task.objects.create(
+        project=project,
+        title="Completada",
+        status=Task.Status.DONE,
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "teams:team-dashboard",
+            kwargs={
+                "team_id": team.pk,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert response.data["tasks"]["total"] == 6
+    assert response.data["tasks"]["todo"] == 3
+    assert response.data["tasks"]["in_progress"] == 2
+    assert response.data["tasks"]["done"] == 1
+
+@pytest.mark.django_db
+def test_team_dashboard_returns_overdue_task_count():
+    owner = User.objects.create_user(
+        username="owner_dashboard_overdue",
+        email="owner_dashboard_overdue@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo tareas vencidas",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto tareas vencidas",
+        created_by=owner,
+    )
+
+    today = timezone.localdate()
+
+    Task.objects.create(
+        project=project,
+        title="Pendiente vencida",
+        status=Task.Status.TODO,
+        due_date=today - timedelta(days=2),
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="En progreso vencida",
+        status=Task.Status.IN_PROGRESS,
+        due_date=today - timedelta(days=1),
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Completada antigua",
+        status=Task.Status.DONE,
+        due_date=today - timedelta(days=5),
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Vence hoy",
+        status=Task.Status.TODO,
+        due_date=today,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Sin fecha límite",
+        status=Task.Status.TODO,
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "teams:team-dashboard",
+            kwargs={
+                "team_id": team.pk,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["tasks"]["overdue"] == 2
+
+@pytest.mark.django_db
+def test_outsider_cannot_retrieve_team_dashboard():
+    owner = User.objects.create_user(
+        username="owner_private_dashboard",
+        email="owner_private_dashboard@example.com",
+        password="Password123!",
+    )
+
+    outsider = User.objects.create_user(
+        username="outsider_private_dashboard",
+        email="outsider_private_dashboard@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Dashboard privado",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=outsider)
+
+    response = client.get(
+        reverse(
+            "teams:team-dashboard",
+            kwargs={
+                "team_id": team.pk,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
 

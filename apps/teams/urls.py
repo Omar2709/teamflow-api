@@ -8,6 +8,8 @@ from .views import (
     TeamOwnershipTransferView,
 )
 
+from .dashboard import TeamDashboardView
+
 
 app_name = "teams"
 
@@ -36,5 +38,10 @@ urlpatterns = [
         "teams/<int:team_id>/transfer-ownership/",
         TeamOwnershipTransferView.as_view(),
         name="team-transfer-ownership",
+    ),
+    path(
+        "teams/<int:team_id>/dashboard/",
+        TeamDashboardView.as_view(),
+        name="team-dashboard",
     ),
 ]
