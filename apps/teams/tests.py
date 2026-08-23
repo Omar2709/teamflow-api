@@ -2754,3 +2754,425 @@ def test_outsider_cannot_retrieve_team_dashboard():
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
 
+@pytest.mark.django_db
+def test_team_dashboard_returns_task_counts_by_priority():
+    owner = User.objects.create_user(
+        username="owner_dashboard_priority",
+        email="owner_dashboard_priority@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo métricas prioridad",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto métricas prioridad",
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Prioridad baja",
+        priority=Task.Priority.LOW,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Prioridad media uno",
+        priority=Task.Priority.MEDIUM,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Prioridad media dos",
+        priority=Task.Priority.MEDIUM,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Prioridad alta uno",
+        priority=Task.Priority.HIGH,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Prioridad alta dos",
+        priority=Task.Priority.HIGH,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Prioridad alta tres",
+        priority=Task.Priority.HIGH,
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "teams:team-dashboard",
+            kwargs={
+                "team_id": team.pk,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert response.data["tasks"]["low"] == 1
+    assert response.data["tasks"]["medium"] == 2
+    assert response.data["tasks"]["high"] == 3
+    assert response.data["tasks"]["total"] == 6
+
+@pytest.mark.django_db
+def test_team_dashboard_returns_current_user_task_metrics():
+    owner = User.objects.create_user(
+        username="owner_personal_dashboard",
+        email="owner_personal_dashboard@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="member_personal_dashboard",
+        email="member_personal_dashboard@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo métricas personales",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto métricas personales",
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Mi pendiente",
+        status=Task.Status.TODO,
+        assigned_to=member,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Mi tarea en progreso",
+        status=Task.Status.IN_PROGRESS,
+        assigned_to=member,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Mi tarea completada",
+        status=Task.Status.DONE,
+        assigned_to=member,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Tarea del owner",
+        status=Task.Status.TODO,
+        assigned_to=owner,
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=member)
+
+    response = client.get(
+        reverse(
+            "teams:team-dashboard",
+            kwargs={
+                "team_id": team.pk,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert response.data["my_tasks"]["total"] == 3
+    assert response.data["my_tasks"]["todo"] == 1
+    assert response.data["my_tasks"]["in_progress"] == 1
+    assert response.data["my_tasks"]["done"] == 1
+
+@pytest.mark.django_db
+def test_team_dashboard_returns_current_user_overdue_task_count():
+    owner = User.objects.create_user(
+        username="owner_personal_overdue",
+        email="owner_personal_overdue@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="member_personal_overdue",
+        email="member_personal_overdue@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo vencidas personales",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto vencidas personales",
+        created_by=owner,
+    )
+
+    today = timezone.localdate()
+
+    Task.objects.create(
+        project=project,
+        title="Mi tarea vencida",
+        status=Task.Status.TODO,
+        assigned_to=member,
+        due_date=today - timedelta(days=1),
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Mi completada antigua",
+        status=Task.Status.DONE,
+        assigned_to=member,
+        due_date=today - timedelta(days=3),
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Mi tarea de hoy",
+        status=Task.Status.TODO,
+        assigned_to=member,
+        due_date=today,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Vencida del owner",
+        status=Task.Status.TODO,
+        assigned_to=owner,
+        due_date=today - timedelta(days=5),
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=member)
+
+    response = client.get(
+        reverse(
+            "teams:team-dashboard",
+            kwargs={
+                "team_id": team.pk,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert response.data["my_tasks"]["overdue"] == 1
+
+@pytest.mark.django_db
+def test_team_dashboard_returns_task_breakdown_by_project():
+    owner = User.objects.create_user(
+        username="owner_project_breakdown",
+        email="owner_project_breakdown@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo desglose proyectos",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    first_project = Project.objects.create(
+        team=team,
+        name="API",
+        created_by=owner,
+    )
+
+    second_project = Project.objects.create(
+        team=team,
+        name="Dashboard",
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=first_project,
+        title="API pendiente",
+        status=Task.Status.TODO,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=first_project,
+        title="API completada",
+        status=Task.Status.DONE,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=second_project,
+        title="Dashboard uno",
+        status=Task.Status.IN_PROGRESS,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=second_project,
+        title="Dashboard dos",
+        status=Task.Status.IN_PROGRESS,
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.get(
+        reverse(
+            "teams:team-dashboard",
+            kwargs={
+                "team_id": team.pk,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["projects"]["total"] == 2
+
+    projects = {
+        project["name"]: project
+        for project
+        in response.data["projects"]["breakdown"]
+    }
+
+    assert projects["API"]["tasks"]["total"] == 2
+    assert projects["API"]["tasks"]["todo"] == 1
+    assert projects["API"]["tasks"]["done"] == 1
+
+    assert projects["Dashboard"]["tasks"]["total"] == 2
+    assert (
+        projects["Dashboard"]["tasks"]["in_progress"]
+        == 2
+    )
+
+@pytest.mark.django_db
+def test_team_dashboard_returns_zero_personal_metrics_when_user_has_no_tasks():
+    owner = User.objects.create_user(
+        username="owner_empty_personal_dashboard",
+        email="owner_empty_personal_dashboard@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="member_empty_personal_dashboard",
+        email="member_empty_personal_dashboard@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo sin tareas personales",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto sin tareas personales",
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Tarea del owner",
+        assigned_to=owner,
+        status=Task.Status.TODO,
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=member)
+
+    response = client.get(
+        reverse(
+            "teams:team-dashboard",
+            kwargs={
+                "team_id": team.pk,
+            },
+        )
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert response.data["my_tasks"] == {
+        "total": 0,
+        "todo": 0,
+        "in_progress": 0,
+        "done": 0,
+        "overdue": 0,
+    }
+
