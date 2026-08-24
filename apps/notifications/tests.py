@@ -4,6 +4,13 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from datetime import date, timedelta
 
+from django.conf import settings
+from django.utils import timezone
+
+from config.celery import app as celery_app
+
+from .tasks import notify_due_soon_tasks
+
 from apps.projects.models import Project
 from apps.tasks.models import Task
 from apps.teams.models import Membership, Team
@@ -1262,6 +1269,196 @@ def test_due_soon_service_notifies_new_assignee_after_reassignment():
 
     assert Notification.objects.filter(
         user=second_member,
+        task=task,
+        type=Notification.Type.TASK_DUE_SOON,
+    ).count() == 1
+
+def test_due_soon_celery_task_is_registered():
+    assert (
+        "notifications.notify_due_soon_tasks"
+        in celery_app.tasks
+    )
+
+def test_celery_uses_configured_broker():
+    assert (
+        celery_app.conf.broker_url
+        == settings.CELERY_BROKER_URL
+    )
+
+    assert celery_app.conf.broker_url.startswith(
+        "redis://"
+    )
+
+@pytest.mark.django_db
+def test_due_soon_celery_task_creates_notification():
+    owner = User.objects.create_user(
+        username="celery_due_owner",
+        email="celery_due_owner@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="celery_due_member",
+        email="celery_due_member@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo Celery due soon",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto Celery",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea ejecutada por Celery",
+        assigned_to=member,
+        due_date=(
+            timezone.localdate()
+            + timedelta(days=2)
+        ),
+        created_by=owner,
+    )
+
+    result = notify_due_soon_tasks.run()
+
+    assert result == 1
+
+    assert Notification.objects.filter(
+        user=member,
+        task=task,
+        type=Notification.Type.TASK_DUE_SOON,
+    ).count() == 1
+
+@pytest.mark.django_db
+def test_due_soon_celery_task_returns_zero_when_no_tasks_match():
+    owner = User.objects.create_user(
+        username="celery_no_due_owner",
+        email="celery_no_due_owner@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="celery_no_due_member",
+        email="celery_no_due_member@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo sin due soon Celery",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto sin due soon Celery",
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Tarea muy lejana",
+        assigned_to=member,
+        due_date=(
+            timezone.localdate()
+            + timedelta(days=20)
+        ),
+        created_by=owner,
+    )
+
+    result = notify_due_soon_tasks.run()
+
+    assert result == 0
+
+    assert Notification.objects.filter(
+        type=Notification.Type.TASK_DUE_SOON,
+    ).count() == 0
+
+@pytest.mark.django_db
+def test_due_soon_celery_task_does_not_duplicate_notifications():
+    owner = User.objects.create_user(
+        username="celery_idempotent_owner",
+        email="celery_idempotent_owner@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="celery_idempotent_member",
+        email="celery_idempotent_member@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo Celery idempotente",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto Celery idempotente",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea Celery sin duplicados",
+        assigned_to=member,
+        due_date=(
+            timezone.localdate()
+            + timedelta(days=3)
+        ),
+        created_by=owner,
+    )
+
+    first_result = notify_due_soon_tasks.run()
+    second_result = notify_due_soon_tasks.run()
+
+    assert first_result == 1
+    assert second_result == 0
+
+    assert Notification.objects.filter(
+        user=member,
         task=task,
         type=Notification.Type.TASK_DUE_SOON,
     ).count() == 1
