@@ -129,7 +129,7 @@ Team-level dashboard metrics including:
 - pytest-django
 - Django REST Framework APIClient
 
-The project currently has more than 160 automated tests covering authentication, permissions, team management, projects, tasks, comments, dashboard metrics, and notifications.
+The project currently has more than 175 automated tests covering authentication, permissions, team management, projects, tasks, comments, dashboard metrics, and notifications.
 
 ---
 
@@ -446,7 +446,7 @@ Run the complete test suite:
 uv run pytest
 ```
 
-The project currently passes more than 160 automated tests.
+The project currently passes more than 175 automated tests.
 
 Tests cover scenarios such as:
 

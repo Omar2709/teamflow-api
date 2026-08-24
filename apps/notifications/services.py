@@ -1,5 +1,8 @@
 from apps.tasks.models import Task
 from apps.users.models import User
+from datetime import timedelta
+
+from django.utils import timezone
 
 from .models import Notification
 
@@ -66,3 +69,51 @@ def create_comment_notifications(
     return Notification.objects.bulk_create(
         notifications
     )
+
+def create_due_soon_notifications(
+    *,
+    today=None,
+) -> list[Notification]:
+    if today is None:
+        today = timezone.localdate()
+
+    due_soon_limit = today + timedelta(days=7)
+
+    tasks = (
+        Task.objects
+        .filter(
+            assigned_to__isnull=False,
+            due_date__gt=today,
+            due_date__lte=due_soon_limit,
+        )
+        .exclude(
+            status=Task.Status.DONE,
+        )
+        .select_related(
+            "assigned_to",
+        )
+    )
+
+    created_notifications = []
+
+    for task in tasks:
+        notification, created = (
+            Notification.objects.get_or_create(
+                user_id=task.assigned_to_id,
+                type=Notification.Type.TASK_DUE_SOON,
+                task=task,
+                defaults={
+                    "message": (
+                        f'La tarea "{task.title}" '
+                        f"vence el {task.due_date}."
+                    ),
+                },
+            )
+        )
+
+        if created:
+            created_notifications.append(
+                notification
+            )
+
+    return created_notifications

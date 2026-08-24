@@ -2,12 +2,15 @@ import pytest
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
+from datetime import date, timedelta
 
 from apps.projects.models import Project
 from apps.tasks.models import Task
 from apps.teams.models import Membership, Team
 from apps.users.models import User
-
+from apps.notifications.services import (
+    create_due_soon_notifications,
+)
 from .models import Notification
 
 @pytest.mark.django_db
@@ -856,4 +859,410 @@ def test_comment_creates_no_notification_when_actor_is_only_recipient():
         type=Notification.Type.COMMENT_CREATED,
         task=task,
     ).count() == 0
+
+@pytest.mark.django_db
+def test_due_soon_service_creates_notification():
+    owner = User.objects.create_user(
+        username="due_soon_owner",
+        email="due_soon_owner@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="due_soon_member",
+        email="due_soon_member@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo due soon",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto due soon",
+        created_by=owner,
+    )
+
+    today = date(2026, 8, 24)
+
+    task = Task.objects.create(
+        project=project,
+        title="Preparar deployment",
+        assigned_to=member,
+        due_date=today + timedelta(days=3),
+        created_by=owner,
+    )
+
+    notifications = (
+        create_due_soon_notifications(
+            today=today,
+        )
+    )
+
+    assert len(notifications) == 1
+
+    notification = Notification.objects.get(
+        user=member,
+        task=task,
+        type=Notification.Type.TASK_DUE_SOON,
+    )
+
+    assert notification.is_read is False
+    assert notification.read_at is None
+    assert "Preparar deployment" in notification.message
+
+@pytest.mark.django_db
+def test_due_soon_service_respects_due_date_rules():
+    owner = User.objects.create_user(
+        username="due_rules_owner",
+        email="due_rules_owner@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="due_rules_member",
+        email="due_rules_member@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo reglas vencimiento",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto reglas vencimiento",
+        created_by=owner,
+    )
+
+    today = date(2026, 8, 24)
+
+    tomorrow = Task.objects.create(
+        project=project,
+        title="Vence mañana",
+        assigned_to=member,
+        due_date=today + timedelta(days=1),
+        created_by=owner,
+    )
+
+    seventh_day = Task.objects.create(
+        project=project,
+        title="Vence en siete días",
+        assigned_to=member,
+        due_date=today + timedelta(days=7),
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Vence hoy",
+        assigned_to=member,
+        due_date=today,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Vence en ocho días",
+        assigned_to=member,
+        due_date=today + timedelta(days=8),
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Ya venció",
+        assigned_to=member,
+        due_date=today - timedelta(days=1),
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Completada",
+        assigned_to=member,
+        status=Task.Status.DONE,
+        due_date=today + timedelta(days=2),
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Sin fecha",
+        assigned_to=member,
+        created_by=owner,
+    )
+
+    Task.objects.create(
+        project=project,
+        title="Sin responsable",
+        due_date=today + timedelta(days=2),
+        created_by=owner,
+    )
+
+    create_due_soon_notifications(
+        today=today,
+    )
+
+    task_ids = set(
+        Notification.objects
+        .filter(
+            type=Notification.Type.TASK_DUE_SOON,
+        )
+        .values_list(
+            "task_id",
+            flat=True,
+        )
+    )
+
+    assert task_ids == {
+        tomorrow.pk,
+        seventh_day.pk,
+    }
+
+@pytest.mark.django_db
+def test_due_soon_service_does_not_duplicate_notifications():
+    owner = User.objects.create_user(
+        username="due_idempotent_owner",
+        email="due_idempotent_owner@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="due_idempotent_member",
+        email="due_idempotent_member@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo idempotencia",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto idempotencia",
+        created_by=owner,
+    )
+
+    today = date(2026, 8, 24)
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea sin duplicados",
+        assigned_to=member,
+        due_date=today + timedelta(days=2),
+        created_by=owner,
+    )
+
+    first_run = create_due_soon_notifications(
+        today=today,
+    )
+
+    second_run = create_due_soon_notifications(
+        today=today,
+    )
+
+    assert len(first_run) == 1
+    assert len(second_run) == 0
+
+    assert Notification.objects.filter(
+        user=member,
+        task=task,
+        type=Notification.Type.TASK_DUE_SOON,
+    ).count() == 1
+
+@pytest.mark.django_db
+def test_due_soon_service_notifies_each_task_assignee():
+    owner = User.objects.create_user(
+        username="due_multiple_owner",
+        email="due_multiple_owner@example.com",
+        password="Password123!",
+    )
+
+    first_member = User.objects.create_user(
+        username="due_first_member",
+        email="due_first_member@example.com",
+        password="Password123!",
+    )
+
+    second_member = User.objects.create_user(
+        username="due_second_member",
+        email="due_second_member@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo varios responsables",
+        created_by=owner,
+    )
+
+    for user, role in (
+        (owner, Membership.Role.OWNER),
+        (first_member, Membership.Role.MEMBER),
+        (second_member, Membership.Role.MEMBER),
+    ):
+        Membership.objects.create(
+            team=team,
+            user=user,
+            role=role,
+        )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto varios responsables",
+        created_by=owner,
+    )
+
+    today = date(2026, 8, 24)
+
+    first_task = Task.objects.create(
+        project=project,
+        title="Tarea del primer miembro",
+        assigned_to=first_member,
+        due_date=today + timedelta(days=2),
+        created_by=owner,
+    )
+
+    second_task = Task.objects.create(
+        project=project,
+        title="Tarea del segundo miembro",
+        assigned_to=second_member,
+        due_date=today + timedelta(days=5),
+        created_by=owner,
+    )
+
+    create_due_soon_notifications(
+        today=today,
+    )
+
+    assert Notification.objects.filter(
+        user=first_member,
+        task=first_task,
+        type=Notification.Type.TASK_DUE_SOON,
+    ).count() == 1
+
+    assert Notification.objects.filter(
+        user=second_member,
+        task=second_task,
+        type=Notification.Type.TASK_DUE_SOON,
+    ).count() == 1
+
+@pytest.mark.django_db
+def test_due_soon_service_notifies_new_assignee_after_reassignment():
+    owner = User.objects.create_user(
+        username="due_reassign_owner",
+        email="due_reassign_owner@example.com",
+        password="Password123!",
+    )
+
+    first_member = User.objects.create_user(
+        username="due_reassign_first",
+        email="due_reassign_first@example.com",
+        password="Password123!",
+    )
+
+    second_member = User.objects.create_user(
+        username="due_reassign_second",
+        email="due_reassign_second@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo reasignación due soon",
+        created_by=owner,
+    )
+
+    for user, role in (
+        (owner, Membership.Role.OWNER),
+        (first_member, Membership.Role.MEMBER),
+        (second_member, Membership.Role.MEMBER),
+    ):
+        Membership.objects.create(
+            team=team,
+            user=user,
+            role=role,
+        )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto reasignación due soon",
+        created_by=owner,
+    )
+
+    today = date(2026, 8, 24)
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea reasignada próxima",
+        assigned_to=first_member,
+        due_date=today + timedelta(days=2),
+        created_by=owner,
+    )
+
+    create_due_soon_notifications(
+        today=today,
+    )
+
+    task.assigned_to = second_member
+    task.save(
+        update_fields=(
+            "assigned_to",
+        )
+    )
+
+    create_due_soon_notifications(
+        today=today,
+    )
+
+    assert Notification.objects.filter(
+        user=first_member,
+        task=task,
+        type=Notification.Type.TASK_DUE_SOON,
+    ).count() == 1
+
+    assert Notification.objects.filter(
+        user=second_member,
+        task=task,
+        type=Notification.Type.TASK_DUE_SOON,
+    ).count() == 1
 
