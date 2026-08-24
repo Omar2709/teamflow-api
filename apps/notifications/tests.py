@@ -509,3 +509,351 @@ def test_assigning_task_to_self_does_not_create_notification():
 
     assert Notification.objects.count() == 0
 
+@pytest.mark.django_db
+def test_comment_creates_notifications_for_task_creator_and_assignee():
+    owner = User.objects.create_user(
+        username="comment_notification_owner",
+        email="comment_notification_owner@example.com",
+        password="Password123!",
+    )
+
+    assignee = User.objects.create_user(
+        username="comment_notification_assignee",
+        email="comment_notification_assignee@example.com",
+        password="Password123!",
+    )
+
+    commenter = User.objects.create_user(
+        username="comment_notification_author",
+        email="comment_notification_author@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo notificaciones comentarios",
+        created_by=owner,
+    )
+
+    for user, role in (
+        (owner, Membership.Role.OWNER),
+        (assignee, Membership.Role.MEMBER),
+        (commenter, Membership.Role.MEMBER),
+    ):
+        Membership.objects.create(
+            team=team,
+            user=user,
+            role=role,
+        )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto comentarios",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Implementar comentarios",
+        assigned_to=assignee,
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=commenter)
+
+    response = client.post(
+        (
+            f"/api/teams/{team.pk}/"
+            f"projects/{project.pk}/"
+            f"tasks/{task.pk}/comments/"
+        ),
+        {
+            "content": "Ya revisé esta tarea.",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+
+    notifications = Notification.objects.filter(
+        type=Notification.Type.COMMENT_CREATED,
+        task=task,
+    )
+
+    assert notifications.count() == 2
+
+    recipient_ids = set(
+        notifications.values_list(
+            "user_id",
+            flat=True,
+        )
+    )
+
+    assert recipient_ids == {
+        owner.pk,
+        assignee.pk,
+    }
+
+    assert commenter.pk not in recipient_ids
+
+@pytest.mark.django_db
+def test_comment_author_does_not_receive_own_notification():
+    owner = User.objects.create_user(
+        username="comment_self_owner",
+        email="comment_self_owner@example.com",
+        password="Password123!",
+    )
+
+    assignee = User.objects.create_user(
+        username="comment_self_assignee",
+        email="comment_self_assignee@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo comentario propio",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=assignee,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto comentario propio",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea comentada por responsable",
+        assigned_to=assignee,
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=assignee)
+
+    response = client.post(
+        (
+            f"/api/teams/{team.pk}/"
+            f"projects/{project.pk}/"
+            f"tasks/{task.pk}/comments/"
+        ),
+        {
+            "content": "Estoy trabajando en esto.",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+
+    assert Notification.objects.filter(
+        user=owner,
+        type=Notification.Type.COMMENT_CREATED,
+        task=task,
+    ).count() == 1
+
+    assert Notification.objects.filter(
+        user=assignee,
+        type=Notification.Type.COMMENT_CREATED,
+        task=task,
+    ).count() == 0
+
+@pytest.mark.django_db
+def test_comment_does_not_duplicate_notification_when_creator_is_assignee():
+    owner = User.objects.create_user(
+        username="comment_duplicate_owner",
+        email="comment_duplicate_owner@example.com",
+        password="Password123!",
+    )
+
+    commenter = User.objects.create_user(
+        username="comment_duplicate_author",
+        email="comment_duplicate_author@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo evitar duplicados",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=commenter,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto evitar duplicados",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea mismo creador y responsable",
+        created_by=owner,
+        assigned_to=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=commenter)
+
+    response = client.post(
+        (
+            f"/api/teams/{team.pk}/"
+            f"projects/{project.pk}/"
+            f"tasks/{task.pk}/comments/"
+        ),
+        {
+            "content": "Comentario sin duplicados.",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+
+    assert Notification.objects.filter(
+        user=owner,
+        task=task,
+        type=Notification.Type.COMMENT_CREATED,
+    ).count() == 1
+
+@pytest.mark.django_db
+def test_comment_on_unassigned_task_notifies_task_creator():
+    owner = User.objects.create_user(
+        username="unassigned_comment_owner",
+        email="unassigned_comment_owner@example.com",
+        password="Password123!",
+    )
+
+    commenter = User.objects.create_user(
+        username="unassigned_comment_author",
+        email="unassigned_comment_author@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo comentario sin responsable",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=commenter,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto sin responsable",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea todavía sin asignar",
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=commenter)
+
+    response = client.post(
+        (
+            f"/api/teams/{team.pk}/"
+            f"projects/{project.pk}/"
+            f"tasks/{task.pk}/comments/"
+        ),
+        {
+            "content": "Hay que revisar esta tarea.",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+
+    notification = Notification.objects.get(
+        type=Notification.Type.COMMENT_CREATED,
+        task=task,
+    )
+
+    assert notification.user_id == owner.pk
+
+@pytest.mark.django_db
+def test_comment_creates_no_notification_when_actor_is_only_recipient():
+    owner = User.objects.create_user(
+        username="comment_only_recipient",
+        email="comment_only_recipient@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo sin destinatario",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto sin destinatario",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea personal",
+        created_by=owner,
+        assigned_to=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    response = client.post(
+        (
+            f"/api/teams/{team.pk}/"
+            f"projects/{project.pk}/"
+            f"tasks/{task.pk}/comments/"
+        ),
+        {
+            "content": "Mi propio comentario.",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+
+    assert Notification.objects.filter(
+        type=Notification.Type.COMMENT_CREATED,
+        task=task,
+    ).count() == 0
+

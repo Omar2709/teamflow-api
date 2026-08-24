@@ -1,6 +1,10 @@
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions
+from django.db import transaction
 
+from apps.notifications.services import (
+    create_comment_notifications,
+)
 from apps.tasks.models import Task
 
 from .models import Comment
@@ -51,10 +55,16 @@ class TaskCommentListCreateView(
             .order_by("created_at")
         )
 
+    @transaction.atomic
     def perform_create(self, serializer):
-        serializer.save(
+        comment = serializer.save(
             task=self.get_task(),
             author=self.request.user,
+        )
+
+        create_comment_notifications(
+            comment=comment,
+            actor=self.request.user,
         )
 
 class CommentDetailView(
