@@ -1,4 +1,5 @@
 import os
+from celery.schedules import crontab
 from datetime import timedelta
 from pathlib import Path
 
@@ -163,3 +164,13 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TASK_IGNORE_RESULT = True
 
 CELERY_TIMEZONE = TIME_ZONE
+
+CELERY_BEAT_SCHEDULE = {
+    "notify-due-soon-tasks-daily": {
+        "task": "notifications.notify_due_soon_tasks",
+        "schedule": crontab(
+            hour=13,
+            minute=0,
+        ),
+    },
+}

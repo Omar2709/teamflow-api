@@ -1,4 +1,5 @@
 import pytest
+from celery.schedules import crontab
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -1462,4 +1463,43 @@ def test_due_soon_celery_task_does_not_duplicate_notifications():
         task=task,
         type=Notification.Type.TASK_DUE_SOON,
     ).count() == 1
+
+def test_due_soon_task_has_periodic_schedule():
+    assert (
+        "notify-due-soon-tasks-daily"
+        in settings.CELERY_BEAT_SCHEDULE
+    )
+
+def test_due_soon_periodic_schedule_uses_correct_task():
+    schedule = settings.CELERY_BEAT_SCHEDULE[
+        "notify-due-soon-tasks-daily"
+    ]
+
+    assert (
+        schedule["task"]
+        == "notifications.notify_due_soon_tasks"
+    )
+
+def test_due_soon_periodic_schedule_uses_crontab():
+    schedule = settings.CELERY_BEAT_SCHEDULE[
+        "notify-due-soon-tasks-daily"
+    ]
+
+    assert isinstance(
+        schedule["schedule"],
+        crontab,
+    )
+
+def test_celery_loads_due_soon_beat_schedule():
+    assert (
+        "notify-due-soon-tasks-daily"
+        in celery_app.conf.beat_schedule
+    )
+
+    assert (
+        celery_app.conf.beat_schedule[
+            "notify-due-soon-tasks-daily"
+        ]["task"]
+        == "notifications.notify_due_soon_tasks"
+    )
 
