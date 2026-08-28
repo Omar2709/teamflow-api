@@ -62,3 +62,18 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         return User.objects.create_user(**validated_data)
+
+class CurrentUserResponseSerializer(serializers.Serializer):
+    message = serializers.CharField(read_only=True)
+    data = UserSerializer(read_only=True)
+
+class LogoutRequestSerializer(serializers.Serializer):
+    refresh = serializers.CharField(
+        write_only=True,
+    )
+
+
+class LogoutResponseSerializer(serializers.Serializer):
+    message = serializers.CharField(
+        read_only=True,
+    )

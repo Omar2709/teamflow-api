@@ -162,3 +162,62 @@ class TeamOwnershipTransferSerializer(serializers.Serializer):
     user_id = serializers.IntegerField(
         min_value=1,
     )
+
+class DashboardTaskBreakdownSerializer(serializers.Serializer):
+    total = serializers.IntegerField(read_only=True)
+    todo = serializers.IntegerField(read_only=True)
+    in_progress = serializers.IntegerField(read_only=True)
+    done = serializers.IntegerField(read_only=True)
+
+
+class DashboardProjectSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    tasks = DashboardTaskBreakdownSerializer(
+        read_only=True,
+    )
+
+
+class DashboardProjectsSerializer(serializers.Serializer):
+    total = serializers.IntegerField(read_only=True)
+    breakdown = DashboardProjectSerializer(
+        many=True,
+        read_only=True,
+    )
+
+
+class DashboardTeamSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    members = serializers.IntegerField(read_only=True)
+
+
+class DashboardTaskMetricsSerializer(serializers.Serializer):
+    total = serializers.IntegerField(read_only=True)
+    todo = serializers.IntegerField(read_only=True)
+    in_progress = serializers.IntegerField(read_only=True)
+    done = serializers.IntegerField(read_only=True)
+    overdue = serializers.IntegerField(read_only=True)
+    due_soon = serializers.IntegerField(read_only=True)
+    unassigned = serializers.IntegerField(read_only=True)
+    low = serializers.IntegerField(read_only=True)
+    medium = serializers.IntegerField(read_only=True)
+    high = serializers.IntegerField(read_only=True)
+
+
+class DashboardMyTaskMetricsSerializer(serializers.Serializer):
+    total = serializers.IntegerField(read_only=True)
+    todo = serializers.IntegerField(read_only=True)
+    in_progress = serializers.IntegerField(read_only=True)
+    done = serializers.IntegerField(read_only=True)
+    overdue = serializers.IntegerField(read_only=True)
+    due_soon = serializers.IntegerField(read_only=True)
+
+
+class TeamDashboardResponseSerializer(serializers.Serializer):
+    team = DashboardTeamSerializer(read_only=True)
+    projects = DashboardProjectsSerializer(read_only=True)
+    tasks = DashboardTaskMetricsSerializer(read_only=True)
+    my_tasks = DashboardMyTaskMetricsSerializer(
+        read_only=True,
+    )

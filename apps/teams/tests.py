@@ -3550,3 +3550,35 @@ def test_team_dashboard_returns_zero_metrics_when_team_has_no_work():
         "overdue": 0,
         "due_soon": 0,
     }
+
+def test_openapi_schema_documents_team_dashboard_response():
+    client = APIClient()
+
+    response = client.get(
+        reverse("schema"),
+        HTTP_ACCEPT=(
+            "application/vnd.oai.openapi+json"
+        ),
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    operation = response.data["paths"][
+        "/api/teams/{team_id}/dashboard/"
+    ]["get"]
+
+    success_response = operation[
+        "responses"
+    ]["200"]
+
+    assert "content" in success_response
+
+    schema = success_response[
+        "content"
+    ][
+        "application/json"
+    ]["schema"]
+
+    assert schema["$ref"].endswith(
+        "/TeamDashboardResponse"
+    )

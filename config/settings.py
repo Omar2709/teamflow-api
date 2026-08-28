@@ -35,6 +35,7 @@ INSTALLED_APPS = [
 
     "rest_framework",
     "django_filters",
+    "drf_spectacular",
     "rest_framework_simplejwt.token_blacklist",
     "apps.users.apps.UsersConfig",
     "apps.teams.apps.TeamsConfig",
@@ -135,6 +136,9 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
     ),
+    "DEFAULT_SCHEMA_CLASS": (
+        "drf_spectacular.openapi.AutoSchema"
+    ),
 }
 
 SIMPLE_JWT = {
@@ -172,5 +176,24 @@ CELERY_BEAT_SCHEDULE = {
             hour=13,
             minute=0,
         ),
+    },
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "TeamFlow API",
+    "DESCRIPTION": (
+        "REST API for collaborative team, project, "
+        "task, comment, dashboard, and notification "
+        "management."
+    ),
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SERVE_PERMISSIONS": [
+        "rest_framework.permissions.AllowAny",
+    ],
+    "SWAGGER_UI_SETTINGS": {
+        "deepLinking": True,
+        "persistAuthorization": True,
+        "displayOperationId": True,
     },
 }

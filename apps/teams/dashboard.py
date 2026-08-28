@@ -1,11 +1,13 @@
 from datetime import timedelta
 
+from drf_spectacular.utils import extend_schema
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from .serializers import TeamDashboardResponseSerializer
 
 from apps.projects.models import Project
 from apps.tasks.models import Task
@@ -16,6 +18,19 @@ from .models import Membership, Team
 class TeamDashboardView(APIView):
     permission_classes = (
         permissions.IsAuthenticated,
+    )
+
+    @extend_schema(
+        tags=["teams"],
+        summary="Obtener dashboard del equipo",
+        description=(
+            "Devuelve métricas agregadas del equipo, "
+            "sus proyectos, tareas y tareas asignadas "
+            "al usuario autenticado."
+        ),
+        responses={
+            200: TeamDashboardResponseSerializer,
+        },
     )
 
     def get(self, request, team_id):

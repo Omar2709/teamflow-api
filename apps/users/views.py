@@ -3,8 +3,15 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
+from drf_spectacular.utils import extend_schema
 
-from .serializers import RegisterSerializer, UserSerializer
+from .serializers import (
+    CurrentUserResponseSerializer,
+    LogoutRequestSerializer,
+    LogoutResponseSerializer,
+    RegisterSerializer,
+    UserSerializer,
+)
 
 
 class RegisterView(generics.CreateAPIView):
@@ -15,6 +22,17 @@ class RegisterView(generics.CreateAPIView):
 class MeView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
+    @extend_schema(
+        tags=["auth"],
+        summary="Obtener usuario autenticado",
+        description=(
+            "Devuelve la información del usuario "
+            "autenticado mediante JWT."
+        ),
+        responses={
+            200: CurrentUserResponseSerializer,
+        },
+    )
     def get(self, request):
         serializer = UserSerializer(request.user)
 
@@ -27,6 +45,20 @@ class MeView(APIView):
 class LogoutView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
+    @extend_schema(
+        tags=["auth"],
+        summary="Cerrar sesión",
+        description=(
+            "Invalida el refresh token proporcionado "
+            "para cerrar la sesión del usuario."
+        ),
+        request=LogoutRequestSerializer,
+        responses={
+            200: LogoutResponseSerializer,
+            400: LogoutResponseSerializer,
+        },
+    )
+    
     def post(self, request):
         refresh_token = request.data.get("refresh")
 

@@ -446,3 +446,169 @@ def test_token_verify_rejects_invalid_token():
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert "detail" in response.data
+
+def test_openapi_schema_is_publicly_available():
+    client = APIClient()
+
+    response = client.get(
+        reverse("schema"),
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+def test_openapi_schema_contains_teamflow_metadata():
+    client = APIClient()
+
+    response = client.get(
+        reverse("schema"),
+        HTTP_ACCEPT=(
+            "application/vnd.oai.openapi+json"
+        ),
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    assert response.data["info"]["title"] == "TeamFlow API"
+    assert response.data["info"]["version"] == "1.0.0"
+
+def test_swagger_ui_is_publicly_available():
+    client = APIClient()
+
+    response = client.get(
+        reverse("swagger-ui"),
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+def test_redoc_is_publicly_available():
+    client = APIClient()
+
+    response = client.get(
+        reverse("redoc"),
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+def test_openapi_schema_includes_jwt_security_scheme():
+    client = APIClient()
+
+    response = client.get(
+        reverse("schema"),
+        HTTP_ACCEPT=(
+            "application/vnd.oai.openapi+json"
+        ),
+    )
+
+    security_schemes = (
+        response.data
+        .get("components", {})
+        .get("securitySchemes", {})
+    )
+
+    assert security_schemes
+
+    assert any(
+        scheme.get("type") == "http"
+        and scheme.get("scheme") == "bearer"
+        for scheme in security_schemes.values()
+    )
+
+def test_openapi_schema_contains_main_api_endpoints():
+    client = APIClient()
+
+    response = client.get(
+        reverse("schema"),
+        HTTP_ACCEPT=(
+            "application/vnd.oai.openapi+json"
+        ),
+    )
+
+    paths = response.data["paths"]
+
+    assert "/api/auth/token/" in paths
+    assert "/api/teams/" in paths
+    assert "/api/notifications/" in paths
+
+def test_openapi_schema_documents_current_user_response():
+    client = APIClient()
+
+    response = client.get(
+        reverse("schema"),
+        HTTP_ACCEPT=(
+            "application/vnd.oai.openapi+json"
+        ),
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    operation = response.data["paths"][
+        "/api/auth/me/"
+    ]["get"]
+
+    success_response = operation[
+        "responses"
+    ]["200"]
+
+    assert "content" in success_response
+
+    schema = success_response[
+        "content"
+    ][
+        "application/json"
+    ]["schema"]
+
+    assert schema["$ref"].endswith(
+        "/CurrentUserResponse"
+    )
+
+def test_openapi_schema_documents_logout_request_and_responses():
+    client = APIClient()
+
+    response = client.get(
+        reverse("schema"),
+        HTTP_ACCEPT=(
+            "application/vnd.oai.openapi+json"
+        ),
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    operation = response.data["paths"][
+        "/api/auth/logout/"
+    ]["post"]
+
+    request_schema = operation[
+        "requestBody"
+    ][
+        "content"
+    ][
+        "application/json"
+    ]["schema"]
+
+    assert request_schema["$ref"].endswith(
+        "/LogoutRequest"
+    )
+
+    success_schema = operation[
+        "responses"
+    ]["200"][
+        "content"
+    ][
+        "application/json"
+    ]["schema"]
+
+    assert success_schema["$ref"].endswith(
+        "/LogoutResponse"
+    )
+
+    error_schema = operation[
+        "responses"
+    ]["400"][
+        "content"
+    ][
+        "application/json"
+    ]["schema"]
+
+    assert error_schema["$ref"].endswith(
+        "/LogoutResponse"
+    )
