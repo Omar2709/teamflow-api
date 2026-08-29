@@ -1,7 +1,13 @@
 from rest_framework import serializers
 
-from .models import Membership,Team
+from .models import (
+    ASSIGNABLE_MEMBERSHIP_ROLE_CHOICES,
+    Membership,
+    Team,
+)
+from drf_spectacular.utils import extend_schema_field
 
+from apps.users.serializers import UserSummarySerializer
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -30,6 +36,12 @@ class TeamSerializer(serializers.ModelSerializer):
             "updated_at",
         )
 
+    @extend_schema_field(
+        UserSummarySerializer(
+            allow_null=True,
+        )
+    )
+
     def get_created_by(self, team):
         if team.created_by is None:
             return None
@@ -40,7 +52,7 @@ class TeamSerializer(serializers.ModelSerializer):
             "email": team.created_by.email,
         }
 
-    def get_member_count(self, team):
+    def get_member_count(self, team) -> int:
         annotated_count = getattr(
             team, 
             "member_count",
@@ -92,16 +104,8 @@ class TeamMembershipCreateSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=150)
 
     role = serializers.ChoiceField(
-        choices=(
-            (
-                Membership.Role.ADMIN,
-                "Administrador",
-            ),
-            (
-                Membership.Role.MEMBER,
-                "Miembro",
-            ),
-        ),
+        choices=ASSIGNABLE_MEMBERSHIP_ROLE_CHOICES,
+        
         default=Membership.Role.MEMBER,
     )
 
@@ -142,18 +146,8 @@ class TeamMembershipRoleUpdateSerializer(
     serializers.ModelSerializer
 ):
     role = serializers.ChoiceField(
-        choices=(
-            (
-                Membership.Role.ADMIN,
-                "Administrador",
-            ),
-            (
-                Membership.Role.MEMBER,
-                "Miembro",
-            ),
-        )
+        choices=ASSIGNABLE_MEMBERSHIP_ROLE_CHOICES
     )
-
     class Meta:
         model = Membership
         fields = ("role",)

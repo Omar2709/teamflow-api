@@ -1,5 +1,7 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 
+from apps.users.serializers import UserSummarySerializer
 from .models import Project
 
 
@@ -30,6 +32,12 @@ class ProjectSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         )
+
+    @extend_schema_field(
+        UserSummarySerializer(
+         allow_null=True,
+        )
+    )
 
     def get_created_by(self, project):
         if project.created_by is None:

@@ -64,6 +64,13 @@ class ProjectTaskListCreateView(
         return self._project
 
     def get_queryset(self):
+        if getattr(
+            self,
+            "swagger_fake_view",
+            False,
+        ):
+            return Task.objects.none()
+        
         return (
             Task.objects
             .filter(

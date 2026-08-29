@@ -99,3 +99,16 @@ class Membership(models.Model):
             f"{self.user.username} - "
             f"{self.team.name} ({self.role})"
         )
+
+MEMBERSHIP_ROLE_CHOICES = Membership.Role.choices
+
+ASSIGNABLE_MEMBERSHIP_ROLE_CHOICES = (
+    (
+        Membership.Role.ADMIN,
+        Membership.Role.ADMIN.label,
+    ),
+    (
+        Membership.Role.MEMBER,
+        Membership.Role.MEMBER.label,
+    ),
+)

@@ -612,3 +612,84 @@ def test_openapi_schema_documents_logout_request_and_responses():
     assert error_schema["$ref"].endswith(
         "/LogoutResponse"
     )
+
+def test_openapi_schema_documents_user_summary_fields():
+    client = APIClient()
+
+    response = client.get(
+        reverse("schema"),
+        HTTP_ACCEPT=(
+            "application/vnd.oai.openapi+json"
+        ),
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    schemas = response.data[
+        "components"
+    ]["schemas"]
+
+    assert "UserSummary" in schemas
+
+    user_summary = schemas["UserSummary"]
+
+    assert set(
+        user_summary["properties"]
+    ) == {
+        "id",
+        "username",
+        "email",
+    }
+
+    assert (
+        user_summary["properties"]["id"]["type"]
+        == "integer"
+    )
+
+    assert (
+        user_summary["properties"]["email"]["format"]
+        == "email"
+    )
+
+def test_openapi_schema_uses_explicit_role_enum_names():
+    client = APIClient()
+
+    response = client.get(
+        reverse("schema"),
+        HTTP_ACCEPT=(
+            "application/vnd.oai.openapi+json"
+        ),
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    schemas = response.data[
+        "components"
+    ]["schemas"]
+
+    assert "MembershipRoleEnum" in schemas
+
+    assert (
+        "AssignableMembershipRoleEnum"
+        in schemas
+    )
+
+    assert "Role6b9Enum" not in schemas
+
+    assert set(
+        schemas["MembershipRoleEnum"]["enum"]
+    ) == {
+        "owner",
+        "admin",
+        "member",
+    }
+
+    assert set(
+        schemas[
+            "AssignableMembershipRoleEnum"
+        ]["enum"]
+    ) == {
+        "admin",
+        "member",
+    }
+

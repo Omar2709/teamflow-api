@@ -196,4 +196,14 @@ SPECTACULAR_SETTINGS = {
         "persistAuthorization": True,
         "displayOperationId": True,
     },
+    "ENUM_NAME_OVERRIDES": {
+        "MembershipRoleEnum": (
+            "apps.teams.models."
+            "MEMBERSHIP_ROLE_CHOICES"
+        ),
+        "AssignableMembershipRoleEnum": (
+            "apps.teams.models."
+            "ASSIGNABLE_MEMBERSHIP_ROLE_CHOICES"
+        ),
+    },
 }

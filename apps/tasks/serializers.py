@@ -1,6 +1,9 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
+from drf_spectacular.utils import extend_schema_field
+
+from apps.users.serializers import UserSummarySerializer
 from apps.teams.models import Membership
 
 from .models import Task
@@ -47,6 +50,11 @@ class TaskSerializer(serializers.ModelSerializer):
             "updated_at",
         )
 
+    @extend_schema_field(
+        UserSummarySerializer(
+            allow_null=True,
+        )
+    )
     def get_created_by(self, task):
         if task.created_by is None:
             return None

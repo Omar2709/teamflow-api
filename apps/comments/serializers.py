@@ -1,4 +1,7 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
+
+from apps.users.serializers import UserSummarySerializer
 
 from .models import Comment
 
@@ -30,6 +33,11 @@ class CommentSerializer(serializers.ModelSerializer):
             "updated_at",
         )
 
+    @extend_schema_field(
+        UserSummarySerializer(
+            allow_null=True,
+        )
+    )
     def get_author(self, comment):
         if comment.author is None:
             return None

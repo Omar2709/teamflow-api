@@ -77,3 +77,16 @@ class LogoutResponseSerializer(serializers.Serializer):
     message = serializers.CharField(
         read_only=True,
     )
+
+class UserSummarySerializer(serializers.Serializer):
+    id = serializers.IntegerField(
+        read_only=True,
+    )
+
+    username = serializers.CharField(
+        read_only=True,
+    )
+
+    email = serializers.EmailField(
+        read_only=True,
+    )
