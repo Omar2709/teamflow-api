@@ -1,6 +1,8 @@
+from typing import cast
+
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
-from django.db import transaction
 from rest_framework import generics, permissions
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -10,12 +12,12 @@ from apps.notifications.services import (
 )
 from apps.projects.models import Project
 from apps.teams.models import Membership
+from apps.users.models import User
 
 from .models import Task
-from .serializers import TaskSerializer
-from .permissions import CanAccessTask
 from .pagination import TaskPagination
-
+from .permissions import CanAccessTask
+from .serializers import TaskSerializer
 
 class ProjectTaskListCreateView(
     generics.ListCreateAPIView
@@ -123,9 +125,11 @@ class ProjectTaskListCreateView(
             created_by=self.request.user,
         )
 
+        actor = cast(User, self.request.user)
+
         create_task_assignment_notification(
             task=task,
-            actor=self.request.user,
+            actor=actor,
         )
 
 
@@ -139,13 +143,13 @@ class TaskDetailView(
         CanAccessTask,
     )
 
-    http_method_names = (
+    http_method_names = [
         "get",
         "patch",
         "delete",
         "head",
         "options",
-    )
+    ]
 
     def get_project(self):
         if not hasattr(self, "_project"):
@@ -226,8 +230,10 @@ class TaskDetailView(
 
         task = serializer.save()
 
+        actor = cast(User, self.request.user)
+
         create_task_assignment_notification(
             task=task,
-            actor=self.request.user,
+            actor=actor,
             previous_assignee_id=previous_assignee_id,
         )

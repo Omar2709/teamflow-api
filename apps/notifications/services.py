@@ -97,9 +97,14 @@ def create_due_soon_notifications(
     created_notifications = []
 
     for task in tasks:
+        assigned_user = task.assigned_to
+
+        if assigned_user is None:
+            continue
+
         notification, created = (
             Notification.objects.get_or_create(
-                user_id=task.assigned_to_id,
+                user=assigned_user,
                 type=Notification.Type.TASK_DUE_SOON,
                 task=task,
                 defaults={
