@@ -6,7 +6,9 @@ from apps.teams.models import Membership
 class CanAccessProject(BasePermission):
     message = "No tienes permiso para modificar este proyecto."
 
-    def has_object_permission(self, request, view, project):
+    def has_object_permission(self, request, view, obj):
+        project = obj
+
         membership = (
             Membership.objects
             .filter(
@@ -27,4 +29,3 @@ class CanAccessProject(BasePermission):
             Membership.Role.OWNER,
             Membership.Role.ADMIN,
         }
-    

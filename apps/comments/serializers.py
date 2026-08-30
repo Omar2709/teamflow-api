@@ -14,7 +14,7 @@ class CommentSerializer(serializers.ModelSerializer):
 
     author = serializers.SerializerMethodField()
 
-    class Meta:
+    class Meta:            # pyright: ignore[reportIncompatibleVariableOverride]
         model = Comment
         fields = (
             "id",

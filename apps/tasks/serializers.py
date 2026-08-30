@@ -26,7 +26,7 @@ class TaskSerializer(serializers.ModelSerializer):
         allow_null=True,
     )
 
-    class Meta:
+    class Meta:         # pyright: ignore[reportIncompatibleVariableOverride]
         model = Task
         fields = (
             "id",

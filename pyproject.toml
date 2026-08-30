@@ -15,6 +15,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "django-stubs==6.0.9",
+    "djangorestframework-stubs==3.17.1",
     "pytest==9.1.1",
     "pytest-django==4.12.0",
 ]

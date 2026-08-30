@@ -6,7 +6,9 @@ from .models import Membership
 class IsTeamMemberOrManager(BasePermission):
     message = "No tienes permiso para modificar este equipo."
 
-    def has_object_permission(self, request, view, team):
+    def has_object_permission(self, request, view, obj):
+        team = obj
+
         membership = (
             team.memberships
             .filter(user=request.user)

@@ -1,16 +1,20 @@
+from typing import cast
+
+from django.db import transaction
+from django.db.models import QuerySet
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions
-from django.db import transaction
 
 from apps.notifications.services import (
     create_comment_notifications,
 )
 from apps.tasks.models import Task
+from apps.users.models import User
 
 from .models import Comment
-from .serializers import CommentSerializer
-from .permissions import CanAccessComment
 from .pagination import CommentPagination
+from .permissions import CanAccessComment
+from .serializers import CommentSerializer
 
 
 class TaskCommentListCreateView(
@@ -24,7 +28,7 @@ class TaskCommentListCreateView(
 
     pagination_class = CommentPagination
 
-    def get_task(self):
+    def get_task(self) -> Task:
         if not hasattr(self, "_task"):
             self._task = get_object_or_404(
                 Task.objects
@@ -42,7 +46,7 @@ class TaskCommentListCreateView(
 
         return self._task
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet[Comment]:
         return (
             Comment.objects
             .filter(
@@ -56,16 +60,19 @@ class TaskCommentListCreateView(
         )
 
     @transaction.atomic
-    def perform_create(self, serializer):
+    def perform_create(self, serializer) -> None:
+        actor = cast(User, self.request.user)
+
         comment = serializer.save(
             task=self.get_task(),
-            author=self.request.user,
+            author=actor,
         )
 
         create_comment_notifications(
             comment=comment,
-            actor=self.request.user,
+            actor=actor,
         )
+
 
 class CommentDetailView(
     generics.RetrieveUpdateDestroyAPIView
@@ -77,15 +84,15 @@ class CommentDetailView(
         CanAccessComment,
     )
 
-    http_method_names = (
+    http_method_names = [
         "get",
         "patch",
         "delete",
         "head",
         "options",
-    )
+    ]
 
-    def get_task(self):
+    def get_task(self) -> Task:
         if not hasattr(self, "_task"):
             self._task = get_object_or_404(
                 Task.objects
@@ -103,7 +110,7 @@ class CommentDetailView(
 
         return self._task
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet[Comment]:
         return (
             Comment.objects
             .filter(

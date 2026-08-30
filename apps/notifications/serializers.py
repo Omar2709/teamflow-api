@@ -11,7 +11,7 @@ class NotificationSerializer(
         read_only=True,
     )
 
-    class Meta:
+    class Meta:               # pyright: ignore[reportIncompatibleVariableOverride]
         model = Notification
 
         fields = (

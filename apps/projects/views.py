@@ -40,11 +40,10 @@ class TeamProjectListCreateView(
         )
 
     def get_serializer_context(self):
-        context = super().get_serializer_context()
-
-        context["team"] = self.get_team()
-
-        return context
+        return {
+            **super().get_serializer_context(),
+            "team": self.get_team(),
+        }
 
     def create(self, request, *args, **kwargs):
         team = self.get_team()
@@ -116,8 +115,7 @@ class ProjectDetailView(
         )
 
     def get_serializer_context(self):
-        context = super().get_serializer_context()
-
-        context["team"] = self.get_team()
-
-        return context
+        return {
+            **super().get_serializer_context(),
+            "team": self.get_team(),
+        }

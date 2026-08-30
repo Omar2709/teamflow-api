@@ -16,7 +16,7 @@ class TeamSerializer(serializers.ModelSerializer):
     created_by = serializers.SerializerMethodField()
     member_count = serializers.SerializerMethodField()
 
-    class Meta:
+    class Meta:       # pyright: ignore[reportIncompatibleVariableOverride]
         model = Team
         fields = (
             "id",
@@ -89,7 +89,7 @@ class TeamMembershipSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
-    class Meta:
+    class Meta:               # pyright: ignore[reportIncompatibleVariableOverride]
         model = Membership
         fields = (
             "id",
@@ -148,7 +148,7 @@ class TeamMembershipRoleUpdateSerializer(
     role = serializers.ChoiceField(
         choices=ASSIGNABLE_MEMBERSHIP_ROLE_CHOICES
     )
-    class Meta:
+    class Meta:                 # pyright: ignore[reportIncompatibleVariableOverride]
         model = Membership
         fields = ("role",)
 

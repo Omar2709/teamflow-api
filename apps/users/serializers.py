@@ -1,12 +1,13 @@
-from django.contrib.auth import get_user_model
+from typing import cast
+
+from django.contrib.auth.models import UserManager
 from rest_framework import serializers
 
-
-User = get_user_model()
+from .models import User
 
 
 class UserSerializer(serializers.ModelSerializer):
-    class Meta:
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         model = User
         fields = (
             "id",
@@ -30,7 +31,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         style={"input_type": "password"},
     )
 
-    class Meta:
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         model = User
         fields = (
             "id",
@@ -41,7 +42,6 @@ class RegisterSerializer(serializers.ModelSerializer):
             "password",
             "password_confirmation",
         )
-
         read_only_fields = ("id",)
 
     def validate(self, attrs):
@@ -61,11 +61,25 @@ class RegisterSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        return User.objects.create_user(**validated_data)
+        manager = cast(
+            UserManager[User],
+            User.objects,
+        )
+
+        return manager.create_user(
+            **validated_data,
+        )
+
 
 class CurrentUserResponseSerializer(serializers.Serializer):
-    message = serializers.CharField(read_only=True)
-    data = UserSerializer(read_only=True)
+    message = serializers.CharField(
+        read_only=True,
+    )
+
+    data = UserSerializer(  # pyright: ignore[reportIncompatibleMethodOverride, reportAssignmentType]
+        read_only=True,
+    )
+
 
 class LogoutRequestSerializer(serializers.Serializer):
     refresh = serializers.CharField(
@@ -77,6 +91,7 @@ class LogoutResponseSerializer(serializers.Serializer):
     message = serializers.CharField(
         read_only=True,
     )
+
 
 class UserSummarySerializer(serializers.Serializer):
     id = serializers.IntegerField(

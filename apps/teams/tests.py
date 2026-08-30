@@ -1,5 +1,4 @@
 import pytest
-from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -7,11 +6,11 @@ from datetime import timedelta
 from django.utils import timezone
 from apps.projects.models import Project
 from apps.tasks.models import Task
+from apps.users.models import User
 
 from .models import Membership, Team
 
 
-User = get_user_model()
 
 
 @pytest.mark.django_db
@@ -40,7 +39,7 @@ def test_authenticated_user_can_create_team():
 
     assert response.data["name"] == "Equipo Backend"
     assert response.data["description"] == payload["description"]
-    assert response.data["created_by"]["id"] == user.id
+    assert response.data["created_by"]["id"] == user.pk
     assert response.data["member_count"] == 1
 
     team = Team.objects.get(id=response.data["id"])
@@ -121,7 +120,7 @@ def test_user_only_lists_teams_where_is_member():
     assert response.status_code == status.HTTP_200_OK
     assert len(response.data) == 1
 
-    assert response.data[0]["id"] == own_team.id
+    assert response.data[0]["id"] == own_team.pk
     assert response.data[0]["name"] == "Equipo visible"
 
     returned_ids = {
@@ -129,7 +128,7 @@ def test_user_only_lists_teams_where_is_member():
         for team in response.data
     }
 
-    assert other_team.id not in returned_ids
+    assert other_team.pk not in returned_ids
 
 @pytest.mark.django_db
 def test_user_can_list_team_created_by_another_user_when_is_member():
@@ -175,9 +174,9 @@ def test_user_can_list_team_created_by_another_user_when_is_member():
 
     returned_team = response.data[0]
 
-    assert returned_team["id"] == team.id
+    assert returned_team["id"] == team.pk
     assert returned_team["name"] == "Equipo compartido"
-    assert returned_team["created_by"]["id"] == owner.id
+    assert returned_team["created_by"]["id"] == owner.pk
     assert returned_team["member_count"] == 2
 
 def test_unauthenticated_user_cannot_list_teams():
@@ -270,7 +269,7 @@ def test_authenticated_user_can_create_team_without_description():
 
     assert response.data["name"] == payload["name"]
     assert response.data["description"] == ""
-    assert response.data["created_by"]["id"] == user.id
+    assert response.data["created_by"]["id"] == user.pk
     assert response.data["member_count"] == 1
 
     team = Team.objects.get(id=response.data["id"])
@@ -305,7 +304,7 @@ def test_team_creation_ignores_server_controlled_fields():
         "name": "Equipo seguro",
         "description": "Prueba de campos protegidos.",
         "created_by": {
-            "id": other_user.id,
+            "id": other_user.pk,
         },
         "member_count": 999,
     }
@@ -320,7 +319,7 @@ def test_team_creation_ignores_server_controlled_fields():
 
     assert (
         response.data["created_by"]["id"]
-        == authenticated_user.id
+        == authenticated_user.pk
     )
     assert response.data["member_count"] == 1
 
@@ -372,10 +371,10 @@ def test_team_member_can_retrieve_team_detail():
 
     assert response.status_code == status.HTTP_200_OK
 
-    assert response.data["id"] == team.id
+    assert response.data["id"] == team.pk
     assert response.data["name"] == team.name
     assert response.data["description"] == team.description
-    assert response.data["created_by"]["id"] == owner.id
+    assert response.data["created_by"]["id"] == owner.pk
     assert response.data["member_count"] == 1
 
 @pytest.mark.django_db
@@ -458,7 +457,7 @@ def test_team_owner_can_update_team():
 
     assert response.data["name"] == "Equipo actualizado"
     assert response.data["description"] == "Descripción actualizada."
-    assert response.data["created_by"]["id"] == owner.id
+    assert response.data["created_by"]["id"] == owner.pk
     assert response.data["member_count"] == 1
 
     team.refresh_from_db()
@@ -520,7 +519,7 @@ def test_team_admin_can_update_team():
 
     assert response.data["name"] == payload["name"]
     assert response.data["description"] == payload["description"]
-    assert response.data["created_by"]["id"] == owner.id
+    assert response.data["created_by"]["id"] == owner.pk
     assert response.data["member_count"] == 2
 
     team.refresh_from_db()
@@ -867,14 +866,14 @@ def test_team_update_ignores_created_by():
         {
             "name": "Equipo actualizado",
             "created_by": {
-                "id": other_user.id,
+                "id": other_user.pk,
             },
         },
         format="json",
     )
 
     assert response.status_code == status.HTTP_200_OK
-    assert response.data["created_by"]["id"] == owner.id
+    assert response.data["created_by"]["id"] == owner.pk
 
     team.refresh_from_db()
 
@@ -917,7 +916,9 @@ def test_team_update_ignores_member_count():
     assert response.status_code == status.HTTP_200_OK
     assert response.data["member_count"] == 1
 
-    assert team.memberships.count() == 1
+    assert Membership.objects.filter(
+        team=team,
+    ).count() == 1
 
 @pytest.mark.django_db
 def test_team_detail_rejects_put_method():
@@ -999,7 +1000,7 @@ def test_team_owner_can_list_members():
     response = client.get(
         reverse(
             "teams:team-members",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         )
     )
 
@@ -1016,14 +1017,14 @@ def test_team_owner_can_list_members():
 
     owner_data = members_by_username["owner_list_members"]
 
-    assert owner_data["id"] == owner.id
+    assert owner_data["id"] == owner.pk
     assert owner_data["email"] == owner.email
     assert owner_data["role"] == Membership.Role.OWNER
     assert "joined_at" in owner_data
 
     member_data = members_by_username["member_list_members"]
 
-    assert member_data["id"] == member.id
+    assert member_data["id"] == member.pk
     assert member_data["email"] == member.email
     assert member_data["role"] == Membership.Role.MEMBER
     assert "joined_at" in member_data
@@ -1065,7 +1066,7 @@ def test_team_admin_can_list_members():
     response = client.get(
         reverse(
             "teams:team-members",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         )
     )
 
@@ -1117,7 +1118,7 @@ def test_team_member_can_list_members():
     response = client.get(
         reverse(
             "teams:team-members",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         )
     )
 
@@ -1163,7 +1164,7 @@ def test_outsider_cannot_list_team_members():
     response = client.get(
         reverse(
             "teams:team-members",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         )
     )
 
@@ -1213,7 +1214,7 @@ def test_team_owner_can_add_member():
     response = client.post(
         reverse(
             "teams:team-members",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         ),
         {
             "username": new_member.username,
@@ -1224,7 +1225,7 @@ def test_team_owner_can_add_member():
 
     assert response.status_code == status.HTTP_201_CREATED
 
-    assert response.data["id"] == new_member.id
+    assert response.data["id"] == new_member.pk
     assert response.data["username"] == new_member.username
     assert response.data["email"] == new_member.email
     assert response.data["role"] == Membership.Role.MEMBER
@@ -1237,7 +1238,9 @@ def test_team_owner_can_add_member():
 
     assert membership.role == Membership.Role.MEMBER
 
-    assert team.memberships.count() == 2
+    assert Membership.objects.filter(
+        team=team,
+    ).count() == 2
 
 @pytest.mark.django_db
 def test_team_admin_can_add_member():
@@ -1282,7 +1285,7 @@ def test_team_admin_can_add_member():
     response = client.post(
         reverse(
             "teams:team-members",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         ),
         {
             "username": new_member.username,
@@ -1293,7 +1296,7 @@ def test_team_admin_can_add_member():
 
     assert response.status_code == status.HTTP_201_CREATED
 
-    assert response.data["id"] == new_member.id
+    assert response.data["id"] == new_member.pk
     assert response.data["username"] == new_member.username
     assert response.data["email"] == new_member.email
     assert response.data["role"] == Membership.Role.MEMBER
@@ -1306,7 +1309,9 @@ def test_team_admin_can_add_member():
 
     assert membership.role == Membership.Role.MEMBER
 
-    assert team.memberships.count() == 3
+    assert Membership.objects.filter(
+        team=team,
+    ).count() == 3
 
 @pytest.mark.django_db
 def test_team_member_cannot_add_member():
@@ -1351,7 +1356,7 @@ def test_team_member_cannot_add_member():
     response = client.post(
         reverse(
             "teams:team-members",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         ),
         {
             "username": new_user.username,
@@ -1367,7 +1372,9 @@ def test_team_member_cannot_add_member():
         user=new_user,
     ).exists()
 
-    assert team.memberships.count() == 2
+    assert Membership.objects.filter(
+        team=team,
+    ).count() == 2
 
 @pytest.mark.django_db
 def test_cannot_add_same_user_twice_to_team():
@@ -1406,7 +1413,7 @@ def test_cannot_add_same_user_twice_to_team():
     response = client.post(
         reverse(
             "teams:team-members",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         ),
         {
             "username": existing_member.username,
@@ -1426,7 +1433,9 @@ def test_cannot_add_same_user_twice_to_team():
         == 1
     )
 
-    assert team.memberships.count() == 2
+    assert Membership.objects.filter(
+        team=team,
+    ).count() == 2
 
 @pytest.mark.django_db
 def test_cannot_add_nonexistent_user_to_team():
@@ -1453,7 +1462,7 @@ def test_cannot_add_nonexistent_user_to_team():
     response = client.post(
         reverse(
             "teams:team-members",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         ),
         {
             "username": "usuario_que_no_existe",
@@ -1469,7 +1478,9 @@ def test_cannot_add_nonexistent_user_to_team():
         team=team,
     ).count() == 1
 
-    assert team.memberships.count() == 1
+    assert Membership.objects.filter(
+        team=team,
+    ).count() == 1
 
 @pytest.mark.django_db
 def test_team_owner_can_promote_member_to_admin():
@@ -1509,8 +1520,8 @@ def test_team_owner_can_promote_member_to_admin():
         reverse(
             "teams:team-member-detail",
             kwargs={
-                "team_id": team.id,
-                "user_id": member.id,
+                "team_id": team.pk,
+                "user_id": member.pk,
             },
         ),
         {
@@ -1521,7 +1532,7 @@ def test_team_owner_can_promote_member_to_admin():
 
     assert response.status_code == status.HTTP_200_OK
 
-    assert response.data["id"] == member.id
+    assert response.data["id"] == member.pk
     assert response.data["username"] == member.username
     assert response.data["role"] == Membership.Role.ADMIN
 
@@ -1567,8 +1578,8 @@ def test_team_owner_can_demote_admin_to_member():
         reverse(
             "teams:team-member-detail",
             kwargs={
-                "team_id": team.id,
-                "user_id": admin.id,
+                "team_id": team.pk,
+                "user_id": admin.pk,
             },
         ),
         {
@@ -1579,7 +1590,7 @@ def test_team_owner_can_demote_admin_to_member():
 
     assert response.status_code == status.HTTP_200_OK
 
-    assert response.data["id"] == admin.id
+    assert response.data["id"] == admin.pk
     assert response.data["username"] == admin.username
     assert response.data["role"] == Membership.Role.MEMBER
 
@@ -1637,8 +1648,8 @@ def test_team_admin_cannot_change_member_role():
         reverse(
             "teams:team-member-detail",
             kwargs={
-                "team_id": team.id,
-                "user_id": member.id,
+                "team_id": team.pk,
+                "user_id": member.pk,
             },
         ),
         {
@@ -1703,8 +1714,8 @@ def test_team_member_cannot_change_roles():
         reverse(
             "teams:team-member-detail",
             kwargs={
-                "team_id": team.id,
-                "user_id": other_member.id,
+                "team_id": team.pk,
+                "user_id": other_member.pk,
             },
         ),
         {
@@ -1757,8 +1768,8 @@ def test_team_owner_cannot_assign_owner_role_through_role_endpoint():
         reverse(
             "teams:team-member-detail",
             kwargs={
-                "team_id": team.id,
-                "user_id": member.id,
+                "team_id": team.pk,
+                "user_id": member.pk,
             },
         ),
         {
@@ -1823,8 +1834,8 @@ def test_team_owner_can_remove_member():
         reverse(
             "teams:team-member-detail",
             kwargs={
-                "team_id": team.id,
-                "user_id": member.id,
+                "team_id": team.pk,
+                "user_id": member.pk,
             },
         )
     )
@@ -1842,7 +1853,9 @@ def test_team_owner_can_remove_member():
         role=Membership.Role.OWNER,
     ).exists()
 
-    assert team.memberships.count() == 1
+    assert Membership.objects.filter(
+        team=team,
+    ).count() == 1
 
 @pytest.mark.django_db
 def test_team_owner_can_remove_admin():
@@ -1882,8 +1895,8 @@ def test_team_owner_can_remove_admin():
         reverse(
             "teams:team-member-detail",
             kwargs={
-                "team_id": team.id,
-                "user_id": admin.id,
+                "team_id": team.pk,
+                "user_id": admin.pk,
             },
         )
     )
@@ -1895,7 +1908,9 @@ def test_team_owner_can_remove_admin():
         user=admin,
     ).exists()
 
-    assert team.memberships.count() == 1
+    assert Membership.objects.filter(
+        team=team,
+    ).count() == 1
 
 @pytest.mark.django_db
 def test_team_admin_can_remove_member():
@@ -1947,8 +1962,8 @@ def test_team_admin_can_remove_member():
         reverse(
             "teams:team-member-detail",
             kwargs={
-                "team_id": team.id,
-                "user_id": member.id,
+                "team_id": team.pk,
+                "user_id": member.pk,
             },
         )
     )
@@ -1966,7 +1981,9 @@ def test_team_admin_can_remove_member():
         role=Membership.Role.ADMIN,
     ).exists()
 
-    assert team.memberships.count() == 2
+    assert Membership.objects.filter(
+        team=team,
+    ).count() == 2
 
 @pytest.mark.django_db
 def test_team_admin_cannot_remove_owner_or_admin():
@@ -2018,8 +2035,8 @@ def test_team_admin_cannot_remove_owner_or_admin():
         reverse(
             "teams:team-member-detail",
             kwargs={
-                "team_id": team.id,
-                "user_id": owner.id,
+                "team_id": team.pk,
+                "user_id": owner.pk,
             },
         )
     )
@@ -2030,8 +2047,8 @@ def test_team_admin_cannot_remove_owner_or_admin():
         reverse(
             "teams:team-member-detail",
             kwargs={
-                "team_id": team.id,
-                "user_id": other_admin.id,
+                "team_id": team.pk,
+                "user_id": other_admin.pk,
             },
         )
     )
@@ -2050,7 +2067,9 @@ def test_team_admin_cannot_remove_owner_or_admin():
         role=Membership.Role.ADMIN,
     ).exists()
 
-    assert team.memberships.count() == 3
+    assert Membership.objects.filter(
+        team=team,
+    ).count() == 3
 
 @pytest.mark.django_db
 def test_team_owner_cannot_leave_team():
@@ -2078,8 +2097,8 @@ def test_team_owner_cannot_leave_team():
         reverse(
             "teams:team-member-detail",
             kwargs={
-                "team_id": team.id,
-                "user_id": owner.id,
+                "team_id": team.pk,
+                "user_id": owner.pk,
             },
         )
     )
@@ -2097,7 +2116,9 @@ def test_team_owner_cannot_leave_team():
         role=Membership.Role.OWNER,
     ).count() == 1
 
-    assert team.memberships.count() == 1
+    assert Membership.objects.filter(
+        team=team,
+    ).count() == 1
 
 @pytest.mark.django_db
 def test_team_owner_can_transfer_ownership():
@@ -2137,11 +2158,11 @@ def test_team_owner_can_transfer_ownership():
         reverse(
             "teams:team-transfer-ownership",
             kwargs={
-                "team_id": team.id,
+                "team_id": team.pk,
             },
         ),
         {
-            "user_id": member.id,
+            "user_id": member.pk,
         },
         format="json",
     )
@@ -2153,7 +2174,7 @@ def test_team_owner_can_transfer_ownership():
         == "Propiedad transferida correctamente."
     )
 
-    assert response.data["new_owner"]["id"] == member.id
+    assert response.data["new_owner"]["id"] == member.pk
     assert (
         response.data["new_owner"]["role"]
         == Membership.Role.OWNER
@@ -2222,10 +2243,10 @@ def test_team_admin_cannot_transfer_ownership():
     response = client.post(
         reverse(
             "teams:team-transfer-ownership",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         ),
         {
-            "user_id": member.id,
+            "user_id": member.pk,
         },
         format="json",
     )
@@ -2287,10 +2308,10 @@ def test_team_member_cannot_transfer_ownership():
     response = client.post(
         reverse(
             "teams:team-transfer-ownership",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         ),
         {
-            "user_id": target.id,
+            "user_id": target.pk,
         },
         format="json",
     )
@@ -2346,10 +2367,10 @@ def test_outsider_cannot_transfer_team_ownership():
     response = client.post(
         reverse(
             "teams:team-transfer-ownership",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         ),
         {
-            "user_id": member.id,
+            "user_id": member.pk,
         },
         format="json",
     )
@@ -2393,10 +2414,10 @@ def test_team_owner_cannot_transfer_ownership_to_outsider():
     response = client.post(
         reverse(
             "teams:team-transfer-ownership",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         ),
         {
-            "user_id": outsider.id,
+            "user_id": outsider.pk,
         },
         format="json",
     )
@@ -2442,10 +2463,10 @@ def test_team_owner_cannot_transfer_ownership_to_self():
     response = client.post(
         reverse(
             "teams:team-transfer-ownership",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         ),
         {
-            "user_id": owner.id,
+            "user_id": owner.pk,
         },
         format="json",
     )

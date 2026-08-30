@@ -1,5 +1,5 @@
 import pytest
-from django.contrib.auth import get_user_model
+from apps.users.models import User
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -9,7 +9,7 @@ from apps.teams.models import Membership, Team
 from .models import Project
 
 
-User = get_user_model()
+
 
 @pytest.mark.django_db
 def test_team_owner_can_create_project():
@@ -36,7 +36,7 @@ def test_team_owner_can_create_project():
     response = client.post(
         reverse(
             "projects:team-project-list-create",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         ),
         {
             "name": "   API    Principal   ",
@@ -49,8 +49,8 @@ def test_team_owner_can_create_project():
 
     assert response.data["name"] == "API Principal"
     assert response.data["description"] == "Backend principal."
-    assert response.data["team"] == team.id
-    assert response.data["created_by"]["id"] == owner.id
+    assert response.data["team"] == team.pk
+    assert response.data["created_by"]["id"] == owner.pk
 
     project = Project.objects.get(
         id=response.data["id"],
@@ -96,7 +96,7 @@ def test_team_admin_can_create_project():
     response = client.post(
         reverse(
             "projects:team-project-list-create",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         ),
         {
             "name": "Proyecto del admin",
@@ -106,8 +106,8 @@ def test_team_admin_can_create_project():
     )
 
     assert response.status_code == status.HTTP_201_CREATED
-    assert response.data["created_by"]["id"] == admin.id
-    assert response.data["team"] == team.id
+    assert response.data["created_by"]["id"] == admin.pk
+    assert response.data["team"] == team.pk
 
     assert Project.objects.filter(
         team=team,
@@ -152,7 +152,7 @@ def test_team_member_cannot_create_project():
     response = client.post(
         reverse(
             "projects:team-project-list-create",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         ),
         {
             "name": "Proyecto no autorizado",
@@ -195,7 +195,7 @@ def test_outsider_cannot_create_project():
     response = client.post(
         reverse(
             "projects:team-project-list-create",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         ),
         {
             "name": "Proyecto externo",
@@ -272,7 +272,7 @@ def test_team_member_can_list_projects():
     response = client.get(
         reverse(
             "projects:team-project-list-create",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         )
     )
 
@@ -284,8 +284,8 @@ def test_team_member_can_list_projects():
         for project in response.data
     }
 
-    assert first_project.id in returned_ids
-    assert second_project.id in returned_ids
+    assert first_project.pk in returned_ids
+    assert second_project.pk in returned_ids
 
 @pytest.mark.django_db
 def test_project_list_only_returns_projects_from_requested_team():
@@ -335,21 +335,21 @@ def test_project_list_only_returns_projects_from_requested_team():
     response = client.get(
         reverse(
             "projects:team-project-list-create",
-            kwargs={"team_id": first_team.id},
+            kwargs={"team_id": first_team.pk},
         )
     )
 
     assert response.status_code == status.HTTP_200_OK
     assert len(response.data) == 1
 
-    assert response.data[0]["id"] == first_project.id
+    assert response.data[0]["id"] == first_project.pk
 
     returned_ids = {
         project["id"]
         for project in response.data
     }
 
-    assert second_project.id not in returned_ids
+    assert second_project.pk not in returned_ids
 
 @pytest.mark.django_db
 def test_project_creation_rejects_name_with_only_spaces():
@@ -376,7 +376,7 @@ def test_project_creation_rejects_name_with_only_spaces():
     response = client.post(
         reverse(
             "projects:team-project-list-create",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         ),
         {
             "name": "        ",
@@ -414,7 +414,7 @@ def test_project_creation_rejects_name_longer_than_120_characters():
     response = client.post(
         reverse(
             "projects:team-project-list-create",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         ),
         {
             "name": "a" * 121,
@@ -458,7 +458,7 @@ def test_cannot_create_duplicate_project_name_in_same_team():
     response = client.post(
         reverse(
             "projects:team-project-list-create",
-            kwargs={"team_id": team.id},
+            kwargs={"team_id": team.pk},
         ),
         {
             "name": "   API    interna   ",
@@ -518,19 +518,19 @@ def test_team_member_can_retrieve_project_detail():
         reverse(
             "projects:project-detail",
             kwargs={
-                "team_id": team.id,
-                "pk": project.id,
+                "team_id": team.pk,
+                "pk": project.pk,
             },
         )
     )
 
     assert response.status_code == status.HTTP_200_OK
 
-    assert response.data["id"] == project.id
-    assert response.data["team"] == team.id
+    assert response.data["id"] == project.pk
+    assert response.data["team"] == team.pk
     assert response.data["name"] == project.name
     assert response.data["description"] == project.description
-    assert response.data["created_by"]["id"] == owner.id
+    assert response.data["created_by"]["id"] == owner.pk
 
 @pytest.mark.django_db
 def test_outsider_cannot_retrieve_project_detail():
@@ -571,8 +571,8 @@ def test_outsider_cannot_retrieve_project_detail():
         reverse(
             "projects:project-detail",
             kwargs={
-                "team_id": team.id,
-                "pk": project.id,
+                "team_id": team.pk,
+                "pk": project.pk,
             },
         )
     )
@@ -628,8 +628,8 @@ def test_team_owner_can_update_project():
         reverse(
             "projects:project-detail",
             kwargs={
-                "team_id": team.id,
-                "pk": project.id,
+                "team_id": team.pk,
+                "pk": project.pk,
             },
         ),
         {
@@ -643,8 +643,8 @@ def test_team_owner_can_update_project():
 
     assert response.data["name"] == "Proyecto actualizado"
     assert response.data["description"] == "Descripción actualizada."
-    assert response.data["team"] == team.id
-    assert response.data["created_by"]["id"] == owner.id
+    assert response.data["team"] == team.pk
+    assert response.data["created_by"]["id"] == owner.pk
 
     project.refresh_from_db()
 
@@ -698,8 +698,8 @@ def test_team_admin_can_update_project():
         reverse(
             "projects:project-detail",
             kwargs={
-                "team_id": team.id,
-                "pk": project.id,
+                "team_id": team.pk,
+                "pk": project.pk,
             },
         ),
         {
@@ -713,8 +713,8 @@ def test_team_admin_can_update_project():
 
     assert response.data["name"] == "Proyecto modificado por admin"
     assert response.data["description"] == "Modificado por administrador."
-    assert response.data["team"] == team.id
-    assert response.data["created_by"]["id"] == owner.id
+    assert response.data["team"] == team.pk
+    assert response.data["created_by"]["id"] == owner.pk
 
     project.refresh_from_db()
 
@@ -767,8 +767,8 @@ def test_team_member_cannot_update_project():
         reverse(
             "projects:project-detail",
             kwargs={
-                "team_id": team.id,
-                "pk": project.id,
+                "team_id": team.pk,
+                "pk": project.pk,
             },
         ),
         {
@@ -819,8 +819,8 @@ def test_project_update_rejects_name_with_only_spaces():
         reverse(
             "projects:project-detail",
             kwargs={
-                "team_id": team.id,
-                "pk": project.id,
+                "team_id": team.pk,
+                "pk": project.pk,
             },
         ),
         {
@@ -887,15 +887,15 @@ def test_project_update_ignores_server_controlled_fields():
         reverse(
             "projects:project-detail",
             kwargs={
-                "team_id": original_team.id,
-                "pk": project.id,
+                "team_id": original_team.pk,
+                "pk": project.pk,
             },
         ),
         {
             "name": "Proyecto actualizado",
-            "team": other_team.id,
+            "team": other_team.pk,
             "created_by": {
-                "id": other_user.id,
+                "id": other_user.pk,
             },
         },
         format="json",
@@ -904,8 +904,8 @@ def test_project_update_ignores_server_controlled_fields():
     assert response.status_code == status.HTTP_200_OK
 
     assert response.data["name"] == "Proyecto actualizado"
-    assert response.data["team"] == original_team.id
-    assert response.data["created_by"]["id"] == owner.id
+    assert response.data["team"] == original_team.pk
+    assert response.data["created_by"]["id"] == owner.pk
 
     project.refresh_from_db()
 
@@ -948,8 +948,8 @@ def test_team_owner_can_delete_project():
         reverse(
             "projects:project-detail",
             kwargs={
-                "team_id": team.id,
-                "pk": project.id,
+                "team_id": team.pk,
+                "pk": project.pk,
             },
         )
     )
@@ -957,7 +957,7 @@ def test_team_owner_can_delete_project():
     assert response.status_code == status.HTTP_204_NO_CONTENT
 
     assert not Project.objects.filter(
-        id=project.id,
+        id=project.pk,
     ).exists()
 
 @pytest.mark.django_db
@@ -1004,8 +1004,8 @@ def test_team_admin_can_delete_project():
         reverse(
             "projects:project-detail",
             kwargs={
-                "team_id": team.id,
-                "pk": project.id,
+                "team_id": team.pk,
+                "pk": project.pk,
             },
         )
     )
@@ -1013,7 +1013,7 @@ def test_team_admin_can_delete_project():
     assert response.status_code == status.HTTP_204_NO_CONTENT
 
     assert not Project.objects.filter(
-        id=project.id,
+        id=project.pk,
     ).exists()
 
 @pytest.mark.django_db
@@ -1061,8 +1061,8 @@ def test_team_member_cannot_delete_project():
         reverse(
             "projects:project-detail",
             kwargs={
-                "team_id": team.id,
-                "pk": project.id,
+                "team_id": team.pk,
+                "pk": project.pk,
             },
         )
     )
@@ -1070,7 +1070,7 @@ def test_team_member_cannot_delete_project():
     assert response.status_code == status.HTTP_403_FORBIDDEN
 
     assert Project.objects.filter(
-        id=project.id,
+        id=project.pk,
     ).exists()
 
 @pytest.mark.django_db
@@ -1111,8 +1111,8 @@ def test_outsider_cannot_delete_project():
         reverse(
             "projects:project-detail",
             kwargs={
-                "team_id": team.id,
-                "pk": project.id,
+                "team_id": team.pk,
+                "pk": project.pk,
             },
         )
     )
@@ -1120,7 +1120,7 @@ def test_outsider_cannot_delete_project():
     assert response.status_code == status.HTTP_404_NOT_FOUND
 
     assert Project.objects.filter(
-        id=project.id,
+        id=project.pk,
     ).exists()
 
 @pytest.mark.django_db
@@ -1162,8 +1162,8 @@ def test_project_update_rejects_duplicate_name_in_same_team():
         reverse(
             "projects:project-detail",
             kwargs={
-                "team_id": team.id,
-                "pk": project_to_update.id,
+                "team_id": team.pk,
+                "pk": project_to_update.pk,
             },
         ),
         {

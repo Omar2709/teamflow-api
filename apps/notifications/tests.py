@@ -266,7 +266,8 @@ def test_assigning_task_on_creation_creates_notification():
     )
 
     assert notification.type == Notification.Type.TASK_ASSIGNED
-    assert notification.task_id == response.data["id"]
+    assert notification.task is not None
+    assert notification.task.pk == response.data["id"]
     assert notification.is_read is False
     assert notification.read_at is None
     assert "Implementar JWT" in notification.message
@@ -812,7 +813,8 @@ def test_comment_on_unassigned_task_notifies_task_creator():
         task=task,
     )
 
-    assert notification.user_id == owner.pk
+    assert notification.user is not None
+    assert notification.user.pk == owner.pk
 
 @pytest.mark.django_db
 def test_comment_creates_no_notification_when_actor_is_only_recipient():
@@ -1338,7 +1340,7 @@ def test_due_soon_celery_task_creates_notification():
         created_by=owner,
     )
 
-    result = notify_due_soon_tasks.run()
+    result = notify_due_soon_tasks()
 
     assert result == 1
 
@@ -1396,7 +1398,7 @@ def test_due_soon_celery_task_returns_zero_when_no_tasks_match():
         created_by=owner,
     )
 
-    result = notify_due_soon_tasks.run()
+    result = notify_due_soon_tasks()
 
     assert result == 0
 
@@ -1452,8 +1454,8 @@ def test_due_soon_celery_task_does_not_duplicate_notifications():
         created_by=owner,
     )
 
-    first_result = notify_due_soon_tasks.run()
-    second_result = notify_due_soon_tasks.run()
+    first_result = notify_due_soon_tasks()
+    second_result = notify_due_soon_tasks()
 
     assert first_result == 1
     assert second_result == 0

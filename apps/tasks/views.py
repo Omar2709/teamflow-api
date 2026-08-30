@@ -1,5 +1,6 @@
 from typing import cast
 
+from collections.abc import Mapping
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
@@ -193,12 +194,14 @@ class TaskDetailView(
         )
 
         if membership.role == Membership.Role.MEMBER:
+            if not isinstance(request.data, Mapping):
+                raise PermissionDenied(
+                    "Los datos enviados deben ser un objeto."
+                )
             allowed_fields = {"status"}
             received_fields = set(request.data.keys())
 
-            if not received_fields.issubset(
-                allowed_fields
-            ):
+            if not received_fields.issubset(allowed_fields):
                 raise PermissionDenied(
                     "Un miembro asignado solo puede cambiar "
                     "el estado de la tarea."
@@ -224,8 +227,14 @@ class TaskDetailView(
 
     @transaction.atomic
     def perform_update(self, serializer):
+        instance = serializer.instance
+
+        assert instance is not None
+
         previous_assignee_id = (
-            serializer.instance.assigned_to_id
+            instance.assigned_to.pk
+            if instance.assigned_to is not None
+            else None
         )
 
         task = serializer.save()

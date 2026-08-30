@@ -43,8 +43,8 @@ def test_team_owner_can_create_task():
         reverse(
             "tasks:project-task-list-create",
             kwargs={
-                "team_id": team.id,
-                "project_id": project.id,
+                "team_id": team.pk,
+                "project_id": project.pk,
             },
         ),
         {
@@ -63,8 +63,8 @@ def test_team_owner_can_create_task():
     assert response.data["status"] == Task.Status.TODO
     assert response.data["priority"] == Task.Priority.HIGH
     assert response.data["assigned_to"] is None
-    assert response.data["project"] == project.id
-    assert response.data["created_by"]["id"] == owner.id
+    assert response.data["project"] == project.pk
+    assert response.data["created_by"]["id"] == owner.pk
     assert response.data["due_date"] == "2026-08-20"
 
     task = Task.objects.get(
@@ -121,8 +121,8 @@ def test_team_admin_can_create_task():
         reverse(
             "tasks:project-task-list-create",
             kwargs={
-                "team_id": team.id,
-                "project_id": project.id,
+                "team_id": team.pk,
+                "project_id": project.pk,
             },
         ),
         {
@@ -136,8 +136,8 @@ def test_team_admin_can_create_task():
     assert response.status_code == status.HTTP_201_CREATED
 
     assert response.data["title"] == "Tarea creada por admin"
-    assert response.data["project"] == project.id
-    assert response.data["created_by"]["id"] == admin.id
+    assert response.data["project"] == project.pk
+    assert response.data["created_by"]["id"] == admin.pk
     assert response.data["status"] == Task.Status.TODO
     assert response.data["priority"] == Task.Priority.MEDIUM
 
@@ -192,8 +192,8 @@ def test_team_member_cannot_create_task():
         reverse(
             "tasks:project-task-list-create",
             kwargs={
-                "team_id": team.id,
-                "project_id": project.id,
+                "team_id": team.pk,
+                "project_id": project.pk,
             },
         ),
         {
@@ -244,8 +244,8 @@ def test_outsider_cannot_create_task():
         reverse(
             "tasks:project-task-list-create",
             kwargs={
-                "team_id": team.id,
-                "project_id": project.id,
+                "team_id": team.pk,
+                "project_id": project.pk,
             },
         ),
         {
@@ -289,8 +289,8 @@ def test_unauthenticated_user_cannot_create_task():
         reverse(
             "tasks:project-task-list-create",
             kwargs={
-                "team_id": team.id,
-                "project_id": project.id,
+                "team_id": team.pk,
+                "project_id": project.pk,
             },
         ),
         {
@@ -360,8 +360,8 @@ def test_team_member_can_list_project_tasks():
         reverse(
             "tasks:project-task-list-create",
             kwargs={
-                "team_id": team.id,
-                "project_id": project.id,
+                "team_id": team.pk,
+                "project_id": project.pk,
             },
         )
     )
@@ -375,8 +375,8 @@ def test_team_member_can_list_project_tasks():
         for task in response.data["results"]
     }
 
-    assert first_task.id in returned_ids
-    assert second_task.id in returned_ids
+    assert first_task.pk in returned_ids
+    assert second_task.pk in returned_ids
 
 @pytest.mark.django_db
 def test_task_list_only_returns_tasks_from_requested_project():
@@ -428,8 +428,8 @@ def test_task_list_only_returns_tasks_from_requested_project():
         reverse(
             "tasks:project-task-list-create",
             kwargs={
-                "team_id": team.id,
-                "project_id": first_project.id,
+                "team_id": team.pk,
+                "project_id": first_project.pk,
             },
         )
     )
@@ -446,7 +446,7 @@ def test_task_list_only_returns_tasks_from_requested_project():
         for task in response.data["results"]
     }
 
-    assert second_task.id not in returned_ids
+    assert second_task.pk not in returned_ids
 
 @pytest.mark.django_db
 def test_task_creation_rejects_title_with_only_spaces():
@@ -480,8 +480,8 @@ def test_task_creation_rejects_title_with_only_spaces():
         reverse(
             "tasks:project-task-list-create",
             kwargs={
-                "team_id": team.id,
-                "project_id": project.id,
+                "team_id": team.pk,
+                "project_id": project.pk,
             },
         ),
         {
@@ -527,8 +527,8 @@ def test_task_creation_rejects_invalid_status_and_priority():
         reverse(
             "tasks:project-task-list-create",
             kwargs={
-                "team_id": team.id,
-                "project_id": project.id,
+                "team_id": team.pk,
+                "project_id": project.pk,
             },
         ),
         {
@@ -584,13 +584,13 @@ def test_task_assigned_user_must_belong_to_team():
         reverse(
             "tasks:project-task-list-create",
             kwargs={
-                "team_id": team.id,
-                "project_id": project.id,
+                "team_id": team.pk,
+                "project_id": project.pk,
             },
         ),
         {
             "title": "Tarea con asignación inválida",
-            "assigned_to": outsider.id,
+            "assigned_to": outsider.pk,
         },
         format="json",
     )

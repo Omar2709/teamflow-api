@@ -1,12 +1,11 @@
 import pytest
-from django.contrib.auth import get_user_model
+from apps.users.models import User
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
 
-User = get_user_model()
 
 
 @pytest.mark.django_db
@@ -199,7 +198,7 @@ def test_authenticated_user_can_access_me_endpoint():
 
     assert response.data["message"] == "Usuario autenticado."
 
-    assert response.data["data"]["id"] == user.id
+    assert response.data["data"]["id"] == user.pk
     assert response.data["data"]["username"] == user.username
     assert response.data["data"]["email"] == user.email
     assert response.data["data"]["first_name"] == user.first_name

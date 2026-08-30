@@ -111,11 +111,10 @@ class TeamMembershipListView(
         return TeamMembershipSerializer
 
     def get_serializer_context(self):
-        context = super().get_serializer_context()
-
-        context["team"] = self.get_team()
-
-        return context
+        return {
+            **super().get_serializer_context(),
+            "team": self.get_team(),
+        }
 
     def create(self, request, *args, **kwargs):
         team = self.get_team()
@@ -262,7 +261,7 @@ class TeamMembershipRoleUpdateView(
 
         # Un usuario que no sea owner puede abandonar
         # voluntariamente el equipo.
-        if target_membership.user_id == request.user.id:
+        if target_membership.user == request.user:
             if requester_membership.role == Membership.Role.OWNER:
                 raise ValidationError(
                     {
@@ -347,7 +346,7 @@ class TeamOwnershipTransferView(
             user_id=serializer.validated_data["user_id"],
         )
 
-        if new_owner.user_id == request.user.id:
+        if new_owner.user == request.user:
             raise ValidationError(
                 {
                     "user_id": (

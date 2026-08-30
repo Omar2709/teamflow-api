@@ -13,7 +13,7 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     created_by = serializers.SerializerMethodField()
 
-    class Meta:
+    class Meta:           # pyright: ignore[reportIncompatibleVariableOverride]
         model = Project
         fields = (
             "id",

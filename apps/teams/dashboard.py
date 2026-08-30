@@ -200,12 +200,12 @@ class TeamDashboardView(APIView):
                 "id": project.pk,
                 "name": project.name,
                 "tasks": {
-                    "total": project.task_total,
-                    "todo": project.task_todo,
+                    "total": getattr(project, "task_total"),
+                    "todo": getattr(project, "task_todo"),
                     "in_progress": (
-                        project.task_in_progress
+                        getattr(project, "task_in_progress")
                     ),
-                    "done": project.task_done,
+                    "done": getattr(project, "task_done"),
                 },
             }
             for project in projects
