@@ -1,5 +1,7 @@
 import pytest
 from django.urls import reverse
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -2233,3 +2235,73 @@ def test_project_task_page_size_is_limited_to_maximum():
     assert len(response.data["results"]) == 50
     assert response.data["next"] is not None
 
+@pytest.mark.django_db
+def test_task_list_query_count_does_not_grow_per_task():
+    owner = User.objects.create_user(
+        username="owner_task_query_growth",
+        email="owner_task_query_growth@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo auditoría queries tareas",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto auditoría queries tareas",
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    def count_task_list_queries():
+        with CaptureQueriesContext(connection) as queries:
+            response = client.get(
+                reverse(
+                    "tasks:project-task-list-create",
+                    kwargs={
+                        "team_id": team.pk,
+                        "project_id": project.pk,
+                    },
+                )
+            )
+
+        assert response.status_code == status.HTTP_200_OK
+
+        return len(queries)
+
+    Task.objects.create(
+        project=project,
+        title="Task 1",
+        created_by=owner,
+    )
+
+    assert Task.objects.filter(project=project).count() == 1
+
+    one_task_queries = count_task_list_queries()
+
+    Task.objects.bulk_create(
+        [
+            Task(
+                project=project,
+                title=f"Task {index}",
+                created_by=owner,
+            )
+            for index in range(2, 11)
+        ]
+    )
+
+    assert Task.objects.filter(project=project).count() == 10
+
+    ten_tasks_queries = count_task_list_queries()
+
+    assert ten_tasks_queries <= one_task_queries + 1

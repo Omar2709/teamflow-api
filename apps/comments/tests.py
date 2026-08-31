@@ -1,5 +1,7 @@
 import pytest
 from django.urls import reverse
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -1059,3 +1061,103 @@ def test_task_comment_page_size_is_limited_to_maximum():
     assert len(response.data["results"]) == 50
     assert response.data["next"] is not None
 
+@pytest.mark.django_db
+def test_comment_list_query_count_does_not_grow_per_comment():
+    owner = User.objects.create_user(
+        username="owner_comment_query_growth",
+        email="owner_comment_query_growth@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="member_comment_query_growth",
+        email="member_comment_query_growth@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo auditoría queries comentarios",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto auditoría queries comentarios",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea auditoría queries comentarios",
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=member)
+
+    Comment.objects.create(
+        task=task,
+        author=owner,
+        content="Comment 1",
+    )
+
+    assert Comment.objects.filter(task=task).count() == 1
+
+    with CaptureQueriesContext(connection) as queries:
+        response = client.get(
+            reverse(
+                "comments:task-comment-list-create",
+                kwargs={
+                    "team_id": team.pk,
+                    "project_id": project.pk,
+                    "task_id": task.pk,
+                },
+            )
+        )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    one_comment_queries = len(queries)
+
+    Comment.objects.bulk_create(
+        [
+            Comment(
+                task=task,
+                author=owner,
+                content=f"Comment {index}",
+            )
+            for index in range(2, 11)
+        ]
+    )
+
+    assert Comment.objects.filter(task=task).count() == 10
+
+    with CaptureQueriesContext(connection) as queries:
+        response = client.get(
+            reverse(
+                "comments:task-comment-list-create",
+                kwargs={
+                    "team_id": team.pk,
+                    "project_id": project.pk,
+                    "task_id": task.pk,
+                },
+            )
+        )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    ten_comments_queries = len(queries)
+
+    assert ten_comments_queries <= one_comment_queries + 1

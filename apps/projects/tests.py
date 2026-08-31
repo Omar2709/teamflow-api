@@ -1,6 +1,8 @@
 import pytest
 from apps.users.models import User
 from django.urls import reverse
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -1183,3 +1185,87 @@ def test_project_update_rejects_duplicate_name_in_same_team():
         team=team,
     ).count() == 2
 
+@pytest.mark.django_db
+def test_project_list_query_count_does_not_grow_per_project():
+    owner = User.objects.create_user(
+        username="owner_project_query_growth",
+        email="owner_project_query_growth@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="member_project_query_growth",
+        email="member_project_query_growth@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo auditoría queries proyectos",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=member)
+
+    Project.objects.create(
+        team=team,
+        name="Project 1",
+        created_by=owner,
+    )
+
+    assert Project.objects.filter(team=team).count() == 1
+
+    with CaptureQueriesContext(connection) as queries:
+        response = client.get(
+            reverse(
+                "projects:team-project-list-create",
+                kwargs={
+                    "team_id": team.pk,
+                },
+            )
+        )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    one_project_queries = len(queries)
+
+    Project.objects.bulk_create(
+        [
+            Project(
+                team=team,
+                name=f"Project {index}",
+                created_by=owner,
+            )
+            for index in range(2, 11)
+        ]
+    )
+
+    assert Project.objects.filter(team=team).count() == 10
+
+    with CaptureQueriesContext(connection) as queries:
+        response = client.get(
+            reverse(
+                "projects:team-project-list-create",
+                kwargs={
+                    "team_id": team.pk,
+                },
+            )
+        )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    ten_projects_queries = len(queries)
+
+    assert ten_projects_queries <= one_project_queries + 1

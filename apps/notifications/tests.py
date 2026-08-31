@@ -1,6 +1,8 @@
 import pytest
 from celery.schedules import crontab
 from django.urls import reverse
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from rest_framework import status
 from rest_framework.test import APIClient
 from datetime import date, timedelta
@@ -1505,3 +1507,58 @@ def test_celery_loads_due_soon_beat_schedule():
         == "notifications.notify_due_soon_tasks"
     )
 
+@pytest.mark.django_db
+def test_notification_list_query_count_does_not_grow_per_notification():
+    user = User.objects.create_user(
+        username="notification_query_growth_user",
+        email="notification_query_growth_user@example.com",
+        password="Password123!",
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    Notification.objects.create(
+        user=user,
+        type=Notification.Type.TASK_ASSIGNED,
+        message="Notification 1",
+    )
+
+    assert Notification.objects.filter(user=user).count() == 1
+
+    with CaptureQueriesContext(connection) as queries:
+        response = client.get(
+            reverse(
+                "notifications:notification-list",
+            )
+        )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    one_notification_queries = len(queries)
+
+    Notification.objects.bulk_create(
+        [
+            Notification(
+                user=user,
+                type=Notification.Type.TASK_ASSIGNED,
+                message=f"Notification {index}",
+            )
+            for index in range(2, 11)
+        ]
+    )
+
+    assert Notification.objects.filter(user=user).count() == 10
+
+    with CaptureQueriesContext(connection) as queries:
+        response = client.get(
+            reverse(
+                "notifications:notification-list",
+            )
+        )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    ten_notifications_queries = len(queries)
+
+    assert ten_notifications_queries <= one_notification_queries + 1

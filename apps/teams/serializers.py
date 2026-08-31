@@ -55,7 +55,7 @@ class TeamSerializer(serializers.ModelSerializer):
     def get_member_count(self, team) -> int:
         annotated_count = getattr(
             team, 
-            "member_count",
+            "member_count_value",
             None
         )
 

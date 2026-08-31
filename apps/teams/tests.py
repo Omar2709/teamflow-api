@@ -1,5 +1,7 @@
 import pytest
 from django.urls import reverse
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from rest_framework import status
 from rest_framework.test import APIClient
 from datetime import timedelta
@@ -3603,3 +3605,141 @@ def test_openapi_schema_documents_team_dashboard_response():
     assert schema["$ref"].endswith(
         "/TeamDashboardResponse"
     )
+
+@pytest.mark.django_db
+def test_team_list_query_count_does_not_grow_per_team():
+    owner = User.objects.create_user(
+        username="owner_team_query_growth",
+        email="owner_team_query_growth@example.com",
+        password="Password123!",
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    first_team = Team.objects.create(
+        name="Team 1",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=first_team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    assert (
+        Team.objects.filter(
+            memberships__user=owner,
+        ).count()
+        == 1
+    )
+
+    with CaptureQueriesContext(connection) as queries:
+        response = client.get(reverse("teams:team-list-create"))
+
+    assert response.status_code == status.HTTP_200_OK
+    one_team_queries = len(queries)
+
+    for index in range(2, 11):
+        team = Team.objects.create(
+            name=f"Team {index}",
+            created_by=owner,
+        )
+
+        Membership.objects.create(
+            team=team,
+            user=owner,
+            role=Membership.Role.OWNER,
+        )
+
+    assert (
+        Team.objects.filter(
+            memberships__user=owner,
+        )
+        .distinct()
+        .count()
+        == 10
+    )
+
+    with CaptureQueriesContext(connection) as queries:
+        response = client.get(reverse("teams:team-list-create"))
+
+    assert response.status_code == status.HTTP_200_OK
+    ten_teams_queries = len(queries)
+
+    assert ten_teams_queries <= one_team_queries + 1
+
+@pytest.mark.django_db
+def test_team_dashboard_query_count_does_not_grow_with_workload():
+    owner = User.objects.create_user(
+        username="owner_dashboard_query_growth",
+        email="owner_dashboard_query_growth@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo auditoría queries dashboard",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    def count_dashboard_queries():
+        with CaptureQueriesContext(connection) as queries:
+            response = client.get(
+                reverse(
+                    "teams:team-dashboard",
+                    kwargs={
+                        "team_id": team.pk,
+                    },
+                )
+            )
+
+        assert response.status_code == status.HTTP_200_OK
+
+        return len(queries)
+
+    empty_dashboard_queries = count_dashboard_queries()
+
+    projects = []
+
+    for index in range(1, 11):
+        project = Project.objects.create(
+            team=team,
+            name=f"Dashboard Project {index}",
+            created_by=owner,
+        )
+        projects.append(project)
+
+    Task.objects.bulk_create(
+        [
+            Task(
+                project=project,
+                title=f"Task {project_index}-{task_index}",
+                created_by=owner,
+                assigned_to=owner,
+            )
+            for project_index, project in enumerate(
+                projects,
+                start=1,
+            )
+            for task_index in range(1, 11)
+        ]
+    )
+
+    assert Project.objects.filter(team=team).count() == 10
+    assert Task.objects.filter(
+        project__team=team,
+    ).count() == 100
+
+    populated_dashboard_queries = count_dashboard_queries()
+
+    assert populated_dashboard_queries <= empty_dashboard_queries + 1
