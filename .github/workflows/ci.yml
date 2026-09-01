@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Django checks and tests
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 10
+
+    env:
+      DB_NAME: teamflow_ci
+      DB_USER: teamflow_ci
+      DB_PASSWORD: ci-${{ github.run_id }}-${{ github.run_attempt }}
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+
+    services:
+      postgres:
+        image: postgres:18.6-alpine
+
+        env:
+          POSTGRES_DB: teamflow_ci
+          POSTGRES_USER: teamflow_ci
+          POSTGRES_PASSWORD: ci-${{ github.run_id }}-${{ github.run_attempt }}
+
+        ports:
+          - 5432:5432
+
+        options: >-
+          --health-cmd "pg_isready -U teamflow_ci -d teamflow_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.5"
+          python-version: "3.13.14"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --locked --dev
+
+      - name: Check Django configuration
+        run: uv run --locked python manage.py check
+
+      - name: Check migrations
+        run: >
+          uv run --locked python manage.py
+          makemigrations --check --dry-run
+
+      - name: Validate OpenAPI schema
+        run: >
+          uv run --locked python manage.py
+          spectacular --validate
+
+      - name: Run tests
+        run: uv run --locked pytest
