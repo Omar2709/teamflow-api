@@ -27,6 +27,7 @@ jobs:
     timeout-minutes: 10
 
     env:
+      DJANGO_SECRET_KEY: ci-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
       DB_NAME: teamflow_ci
       DB_USER: teamflow_ci
       DB_PASSWORD: ci-${{ github.run_id }}-${{ github.run_attempt }}
