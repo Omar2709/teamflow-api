@@ -17,4 +17,4 @@ RUN uv sync \
 
 COPY . .
 
-CMD ["celery", "-A", "config", "worker", "--loglevel=INFO"]
+CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000"]
