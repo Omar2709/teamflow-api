@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.urls import include, path
+from config.health import health, readiness
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularRedocView,
@@ -53,5 +54,15 @@ urlpatterns = [
             url_name="schema",
         ),
         name="redoc",
+    ),
+    path(
+        "health/",
+        health,
+        name="health",
+    ),
+    path(
+        "ready/",
+        readiness,
+        name="readiness",
     ),
 ]
