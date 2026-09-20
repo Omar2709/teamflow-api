@@ -1,5 +1,9 @@
+import logging
 from django.db import DatabaseError, connection
 from django.http import HttpRequest, JsonResponse
+
+
+logger = logging.getLogger(__name__)
 
 
 def health(_request: HttpRequest) -> JsonResponse:
@@ -16,6 +20,9 @@ def _database_is_ready() -> bool:
             cursor.execute("SELECT 1")
             cursor.fetchone()
     except DatabaseError:
+        logger.exception(
+            "Database readiness check failed."
+        )
         return False
 
     return True

@@ -1,6 +1,6 @@
 import pytest
 from django.urls import reverse
-from django.db import connection
+from django.db import IntegrityError, connection
 from django.test.utils import CaptureQueriesContext
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -249,7 +249,7 @@ def test_team_creation_rejects_name_longer_than_120_characters():
 @pytest.mark.django_db
 def test_authenticated_user_can_create_team_without_description():
     user = User.objects.create_user(
-        username="usuario_sin_descripcion",
+        username="usuario_sin_description",
         email="sin_descripcion@example.com",
         password="Password123!",
     )
@@ -2502,6 +2502,164 @@ def test_unauthenticated_user_cannot_transfer_team_ownership():
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 @pytest.mark.django_db
+def test_previous_owner_cannot_transfer_ownership_again():
+    owner = User.objects.create_user(
+        username="owner_transfer_once",
+        email="owner_transfer_once@example.com",
+        password="Password123!",
+    )
+
+    first_member = User.objects.create_user(
+        username="first_transfer_member",
+        email="first_transfer_member@example.com",
+        password="Password123!",
+    )
+
+    second_member = User.objects.create_user(
+        username="second_transfer_member",
+        email="second_transfer_member@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo transferencia única",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=first_member,
+        role=Membership.Role.MEMBER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=second_member,
+        role=Membership.Role.MEMBER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(
+        user=owner,
+    )
+
+    first_response = client.post(
+        reverse(
+            "teams:team-transfer-ownership",
+            kwargs={
+                "team_id": team.pk,
+            },
+        ),
+        {
+            "user_id": first_member.pk,
+        },
+        format="json",
+    )
+
+    assert (
+        first_response.status_code
+        == status.HTTP_200_OK
+    )
+
+    second_response = client.post(
+        reverse(
+            "teams:team-transfer-ownership",
+            kwargs={
+                "team_id": team.pk,
+            },
+        ),
+        {
+            "user_id": second_member.pk,
+        },
+        format="json",
+    )
+
+    assert (
+        second_response.status_code
+        == status.HTTP_403_FORBIDDEN
+    )
+
+    owner_membership = Membership.objects.get(
+        team=team,
+        user=owner,
+    )
+
+    first_member_membership = (
+        Membership.objects.get(
+            team=team,
+            user=first_member,
+        )
+    )
+
+    second_member_membership = (
+        Membership.objects.get(
+            team=team,
+            user=second_member,
+        )
+    )
+
+    assert (
+        owner_membership.role
+        == Membership.Role.ADMIN
+    )
+
+    assert (
+        first_member_membership.role
+        == Membership.Role.OWNER
+    )
+
+    assert (
+        second_member_membership.role
+        == Membership.Role.MEMBER
+    )
+
+    assert (
+        Membership.objects.filter(
+            team=team,
+            role=Membership.Role.OWNER,
+        ).count()
+        == 1
+    )
+
+@pytest.mark.django_db
+def test_team_cannot_have_two_owners():
+    owner = User.objects.create_user(
+        username="first_unique_owner",
+        email="first_unique_owner@example.com",
+        password="Password123!",
+    )
+
+    second_user = User.objects.create_user(
+        username="second_unique_owner",
+        email="second_unique_owner@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo owner único",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    with pytest.raises(IntegrityError):
+        Membership.objects.create(
+            team=team,
+            user=second_user,
+            role=Membership.Role.OWNER,
+        )
+
+@pytest.mark.django_db
 def test_team_member_can_retrieve_team_dashboard():
     owner = User.objects.create_user(
         username="owner_dashboard_access",
@@ -3743,3 +3901,68 @@ def test_team_dashboard_query_count_does_not_grow_with_workload():
     populated_dashboard_queries = count_dashboard_queries()
 
     assert populated_dashboard_queries <= empty_dashboard_queries + 1
+
+@pytest.mark.django_db
+def test_adding_existing_team_member_returns_400():
+    owner = User.objects.create_user(
+        username="owner_existing_member",
+        email="owner_existing_member@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="existing_member",
+        email="existing_member@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo miembro existente",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    client = APIClient()
+    client.force_authenticate(
+        user=owner,
+    )
+
+    response = client.post(
+        reverse(
+            "teams:team-members",
+            kwargs={
+                "team_id": team.pk,
+            },
+        ),
+        {
+            "username": member.username,
+            "role": Membership.Role.MEMBER,
+        },
+        format="json",
+    )
+
+    assert (
+        response.status_code
+        == status.HTTP_400_BAD_REQUEST
+    )
+
+    assert "username" in response.data
+
+    assert (
+        Membership.objects.filter(
+            team=team,
+            user=member,
+        ).count()
+        == 1
+    )

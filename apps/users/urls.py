@@ -1,11 +1,13 @@
 from django.urls import path
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-    TokenVerifyView,
-)
 
-from .views import LogoutView, MeView, RegisterView
+from .views import (
+    LogoutView,
+    MeView,
+    RegisterView,
+    ThrottledTokenObtainPairView,
+    ThrottledTokenRefreshView,
+    ThrottledTokenVerifyView,
+)
 
 
 app_name = "users"
@@ -18,17 +20,17 @@ urlpatterns = [
     ),
     path(
         "token/",
-        TokenObtainPairView.as_view(),
+        ThrottledTokenObtainPairView.as_view(),
         name="token-obtain-pair",
     ),
     path(
         "token/refresh/",
-        TokenRefreshView.as_view(),
+        ThrottledTokenRefreshView.as_view(),
         name="token-refresh",
     ),
     path(
         "token/verify/",
-        TokenVerifyView.as_view(),
+        ThrottledTokenVerifyView.as_view(),
         name="token-verify",
     ),
     path(

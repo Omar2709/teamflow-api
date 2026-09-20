@@ -4,7 +4,7 @@ TeamFlow is a REST API for collaborative team, project, and task management, bui
 
 The project focuses on backend architecture, authentication, role-based authorization, relational data modeling, business rules, background processing, automated testing, database performance, continuous integration, and production-oriented configuration.
 
-It allows teams to manage members, projects, tasks, comments, dashboards, and notifications through a secure REST API, while using PostgreSQL for relational persistence, Redis as a message broker, and Celery for asynchronous background processing.
+It allows teams to manage members, projects, tasks, comments, dashboards, and notifications through a secure REST API, while using PostgreSQL for relational persistence, Redis for caching and Celery messaging, and Celery for asynchronous background processing.
 
 ---
 
@@ -38,11 +38,11 @@ It allows teams to manage members, projects, tasks, comments, dashboards, and no
 
 - Supported roles:
 
-  - Owner
+  - Owner
 
-  - Admin
+  - Admin
 
-  - Member
+  - Member
 
 - Add and remove members
 
@@ -76,19 +76,19 @@ It allows teams to manage members, projects, tasks, comments, dashboards, and no
 
 - Task statuses:
 
-  - Todo
+  - Todo
 
-  - In progress
+  - In progress
 
-  - Done
+  - Done
 
 - Task priorities:
 
-  - Low
+  - Low
 
-  - Medium
+  - Medium
 
-  - High
+  - High
 
 - Optional due dates
 
@@ -224,6 +224,8 @@ Team-level dashboard metrics including:
 
 - Redis as Celery message broker
 
+- Redis as Django cache backend for authentication throttling
+
 - Containerized Celery worker
 
 - Containerized Celery Beat scheduler
@@ -272,7 +274,7 @@ Team-level dashboard metrics including:
 
 - WSL 2 / Linux containers when running Docker Desktop on Windows
 
-The project currently contains **204 passing automated tests** covering authentication, authorization, teams, projects, tasks, comments, dashboards, notifications, database behavior, Celery integration, OpenAPI contracts, and ORM query performance.
+The project currently contains **225 passing automated tests** covering authentication, authorization, teams, projects, tasks, comments, dashboards, notifications, database behavior, Celery integration, OpenAPI contracts, and ORM query performance.
 
 ---
 
@@ -281,71 +283,43 @@ The project currently contains **204 passing automated tests** covering authenti
 A simplified view of the current architecture is:
 
 ```text
-
 Client
-
-  │
-
-  ▼
-
+  │
+  ▼
 Gunicorn
-
-  │
-
-  ▼
-
+  │
+  ▼
 Django REST Framework
+  │
+  ├──────────────► PostgreSQL
+  │
+  └──────────────► Redis
+                    Django cache / throttling
 
-  │
-
-  ├──────────────► PostgreSQL
-
-  │
-
-  ▼
-
+Celery Beat
+  │
+  │ periodic task
+  ▼
 Redis
-
-  │
-
-  ├──────────────► Celery Worker
-
-  │                   │
-
-  │                   ▼
-
-  │             Notification Services
-
-  │                   │
-
-  │                   ▼
-
-  │               PostgreSQL
-
-  │
-
-  └──────────────► Celery Beat
-
-                      │
-
-                      ▼
-
-                Scheduled Tasks
-
+Celery broker
+  │
+  ▼
+Celery Worker
+  │
+  ▼
+Notification Services
+  │
+  ▼
+PostgreSQL
 ```
 
 Docker Compose is used locally to run:
 
 ```text
-
 web
-
 redis
-
 celery-worker
-
 celery-beat
-
 ```
 
 The `web` service executes Django through Gunicorn instead of Django's development server.
@@ -371,42 +345,26 @@ The pipeline uses PostgreSQL 18.6 and validates:
 The current CI pipeline performs:
 
 ```text
-
 Checkout repository
-
-        ↓
-
+        ↓
 Set up uv and Python
-
-        ↓
-
+        ↓
 Install dependencies
-
-        ↓
-
+        ↓
 Start PostgreSQL service
-
-        ↓
-
+        ↓
 Django system check
-
-        ↓
-
+        ↓
 Migration consistency check
-
-        ↓
-
+        ↓
 OpenAPI validation
-
-        ↓
-
+        ↓
 pytest
-
 ```
 
 Current test suite:
 
-- 204 automated tests
+- 225 automated tests
 
 - Unit and integration tests
 
@@ -427,155 +385,84 @@ The CI environment uses ephemeral credentials and does not require local `.env` 
 ## Project Structure
 
 ```text
-
 teamflow/
-
 │
-
 ├── .github/
-
-│   └── workflows/
-
-│       └── ci.yml
-
+│   └── workflows/
+│       └── ci.yml
 │
-
 ├── apps/
-
-│   ├── users/
-
-│   │   ├── models.py
-
-│   │   ├── serializers.py
-
-│   │   ├── views.py
-
-│   │   ├── urls.py
-
-│   │   └── tests.py
-
-│   │
-
-│   ├── teams/
-
-│   │   ├── models.py
-
-│   │   ├── dashboard.py
-
-│   │   ├── permissions.py
-
-│   │   ├── serializers.py
-
-│   │   ├── views.py
-
-│   │   ├── urls.py
-
-│   │   └── tests.py
-
-│   │
-
-│   ├── projects/
-
-│   │   ├── models.py
-
-│   │   ├── permissions.py
-
-│   │   ├── serializers.py
-
-│   │   ├── views.py
-
-│   │   ├── urls.py
-
-│   │   └── tests.py
-
-│   │
-
-│   ├── tasks/
-
-│   │   ├── models.py
-
-│   │   ├── pagination.py
-
-│   │   ├── permissions.py
-
-│   │   ├── serializers.py
-
-│   │   ├── views.py
-
-│   │   ├── urls.py
-
-│   │   └── tests.py
-
-│   │
-
-│   ├── comments/
-
-│   │   ├── models.py
-
-│   │   ├── pagination.py
-
-│   │   ├── permissions.py
-
-│   │   ├── serializers.py
-
-│   │   ├── views.py
-
-│   │   ├── urls.py
-
-│   │   └── tests.py
-
-│   │
-
-│   └── notifications/
-
-│       ├── models.py
-
-│       ├── serializers.py
-
-│       ├── services.py
-
-│       ├── tasks.py
-
-│       ├── views.py
-
-│       ├── urls.py
-
-│       └── tests.py
-
+│   ├── users/
+│   │   ├── models.py
+│   │   ├── serializers.py
+│   │   ├── views.py
+│   │   ├── urls.py
+│   │   └── tests.py
+│   │
+│   ├── teams/
+│   │   ├── models.py
+│   │   ├── dashboard.py
+│   │   ├── permissions.py
+│   │   ├── serializers.py
+│   │   ├── views.py
+│   │   ├── urls.py
+│   │   └── tests.py
+│   │
+│   ├── projects/
+│   │   ├── models.py
+│   │   ├── permissions.py
+│   │   ├── serializers.py
+│   │   ├── views.py
+│   │   ├── urls.py
+│   │   └── tests.py
+│   │
+│   ├── tasks/
+│   │   ├── models.py
+│   │   ├── pagination.py
+│   │   ├── permissions.py
+│   │   ├── serializers.py
+│   │   ├── views.py
+│   │   ├── urls.py
+│   │   └── tests.py
+│   │
+│   ├── comments/
+│   │   ├── models.py
+│   │   ├── pagination.py
+│   │   ├── permissions.py
+│   │   ├── serializers.py
+│   │   ├── views.py
+│   │   ├── urls.py
+│   │   └── tests.py
+│   │
+│   └── notifications/
+│       ├── models.py
+│       ├── serializers.py
+│       ├── services.py
+│       ├── tasks.py
+│       ├── views.py
+│       ├── urls.py
+│       └── tests.py
 │
-
 ├── config/
-
-│   ├── celery.py
-
-│   ├── settings.py
-
-│   ├── settings_test.py
-
-│   ├── urls.py
-
-│   ├── wsgi.py
-
-│   └── ...
-
+│   ├── celery.py
+│   ├── health.py
+│   ├── middleware.py
+│   ├── settings.py
+│   ├── settings_test.py
+│   ├── test_health.py
+│   ├── urls.py
+│   ├── wsgi.py
+│   └── ...
 │
-
 ├── Dockerfile
-
 ├── compose.yaml
-
+├── gunicorn.conf.py
 ├── manage.py
-
 ├── pyproject.toml
-
 ├── uv.lock
-
 ├── pytest.ini
-
 ├── .env.example
-
 └── README.md
-
 ```
 
 Each Django application is responsible for a specific business domain, helping keep the codebase modular and maintainable.
@@ -589,37 +476,21 @@ Business logic that does not belong directly to HTTP views is separated into ser
 The main relationships between entities can be represented as:
 
 ```text
-
 User
-
- │
-
- ▼
-
+ │
+ ▼
 Membership
-
- │
-
- ▼
-
+ │
+ ▼
 Team
-
- │
-
- ▼
-
+ │
+ ▼
 Project
-
- │
-
- ▼
-
+ │
+ ▼
 Task
-
- ├── Comment
-
- └── Notification
-
+ ├── Comment
+ └── Notification
 ```
 
 A user belongs to a team through a `Membership`, which also determines the user's role and permissions.
@@ -695,81 +566,51 @@ Members cannot modify administrative team resources.
 ### Authentication
 
 ```http
-
 POST /api/auth/register/
-
 POST /api/auth/token/
-
 POST /api/auth/token/refresh/
-
 POST /api/auth/token/verify/
-
 POST /api/auth/logout/
-
-GET  /api/auth/me/
-
+GET  /api/auth/me/
 ```
 
 ### Teams
 
 ```http
-
-GET   /api/teams/
-
-POST  /api/teams/
-
-GET   /api/teams/{team_id}/
-
+GET   /api/teams/
+POST  /api/teams/
+GET   /api/teams/{team_id}/
 PATCH /api/teams/{team_id}/
-
 ```
 
 ### Team Members
 
 ```http
-
-GET    /api/teams/{team_id}/members/
-
-POST   /api/teams/{team_id}/members/
-
-PATCH  /api/teams/{team_id}/members/{user_id}/
-
+GET    /api/teams/{team_id}/members/
+POST   /api/teams/{team_id}/members/
+PATCH  /api/teams/{team_id}/members/{user_id}/
 DELETE /api/teams/{team_id}/members/{user_id}/
-
-POST   /api/teams/{team_id}/transfer-ownership/
-
+POST   /api/teams/{team_id}/transfer-ownership/
 ```
 
 ### Projects
 
 ```http
-
-GET    /api/teams/{team_id}/projects/
-
-POST   /api/teams/{team_id}/projects/
-
-GET    /api/teams/{team_id}/projects/{project_id}/
-
-PATCH  /api/teams/{team_id}/projects/{project_id}/
-
+GET    /api/teams/{team_id}/projects/
+POST   /api/teams/{team_id}/projects/
+GET    /api/teams/{team_id}/projects/{project_id}/
+PATCH  /api/teams/{team_id}/projects/{project_id}/
 DELETE /api/teams/{team_id}/projects/{project_id}/
-
 ```
 
 ### Tasks
 
 ```http
-
-GET    /api/teams/{team_id}/projects/{project_id}/tasks/
-
-POST   /api/teams/{team_id}/projects/{project_id}/tasks/
-
-GET    /api/teams/{team_id}/projects/{project_id}/tasks/{task_id}/
-
-PATCH  /api/teams/{team_id}/projects/{project_id}/tasks/{task_id}/
-
+GET    /api/teams/{team_id}/projects/{project_id}/tasks/
+POST   /api/teams/{team_id}/projects/{project_id}/tasks/
+GET    /api/teams/{team_id}/projects/{project_id}/tasks/{task_id}/
+PATCH  /api/teams/{team_id}/projects/{project_id}/tasks/{task_id}/
 DELETE /api/teams/{team_id}/projects/{project_id}/tasks/{task_id}/
-
 ```
 
 Task lists support filtering, searching, ordering, and pagination.
@@ -777,49 +618,35 @@ Task lists support filtering, searching, ordering, and pagination.
 Filter example:
 
 ```http
-
 GET /api/teams/1/projects/2/tasks/?status=todo&priority=high
-
 ```
 
 Search example:
 
 ```http
-
 GET /api/teams/1/projects/2/tasks/?search=authentication
-
 ```
 
 Ordering example:
 
 ```http
-
 GET /api/teams/1/projects/2/tasks/?ordering=due_date
-
 ```
 
 ### Comments
 
 ```http
-
-GET    /api/teams/{team_id}/projects/{project_id}/tasks/{task_id}/comments/
-
-POST   /api/teams/{team_id}/projects/{project_id}/tasks/{task_id}/comments/
-
-GET    /api/teams/{team_id}/projects/{project_id}/tasks/{task_id}/comments/{comment_id}/
-
-PATCH  /api/teams/{team_id}/projects/{project_id}/tasks/{task_id}/comments/{comment_id}/
-
+GET    /api/teams/{team_id}/projects/{project_id}/tasks/{task_id}/comments/
+POST   /api/teams/{team_id}/projects/{project_id}/tasks/{task_id}/comments/
+GET    /api/teams/{team_id}/projects/{project_id}/tasks/{task_id}/comments/{comment_id}/
+PATCH  /api/teams/{team_id}/projects/{project_id}/tasks/{task_id}/comments/{comment_id}/
 DELETE /api/teams/{team_id}/projects/{project_id}/tasks/{task_id}/comments/{comment_id}/
-
 ```
 
 ### Dashboard
 
 ```http
-
 GET /api/teams/{team_id}/dashboard/
-
 ```
 
 The dashboard provides aggregated team and personal task metrics.
@@ -827,11 +654,8 @@ The dashboard provides aggregated team and personal task metrics.
 ### Notifications
 
 ```http
-
-GET   /api/notifications/
-
+GET   /api/notifications/
 PATCH /api/notifications/{notification_id}/read/
-
 ```
 
 Users only have access to their own notifications.
@@ -845,13 +669,9 @@ TeamFlow exposes an OpenAPI 3 schema using `drf-spectacular`.
 Available endpoints:
 
 ```text
-
-/api/schema/   → OpenAPI schema
-
-/api/docs/     → Swagger UI
-
-/api/redoc/    → ReDoc
-
+/api/schema/   → OpenAPI schema
+/api/docs/     → Swagger UI
+/api/redoc/    → ReDoc
 ```
 
 Swagger includes support for JWT authentication and documents protected endpoints using a Bearer authentication scheme.
@@ -869,9 +689,7 @@ The project also contains regression tests to ensure important OpenAPI contracts
 Schema validation can be executed with:
 
 ```bash
-
 uv run python manage.py spectacular --validate
-
 ```
 
 The current schema validates without OpenAPI generation errors or warnings.
@@ -885,104 +703,66 @@ TeamFlow separates business rules from the mechanism used to execute them.
 For example, notifications for tasks approaching their due date are implemented through a reusable service.
 
 ```text
-
 Celery Task
-
-    │
-
-    ▼
-
+    │
+    ▼
 Notification Service
-
-    │
-
-    ▼
-
+    │
+    ▼
 Django ORM
-
-    │
-
-    ▼
-
+    │
+    ▼
 PostgreSQL
-
 ```
 
 Redis acts as the message broker for Celery:
 
 ```text
-
 Application
-
-    │
-
-    │ task message
-
-    ▼
-
+    │
+    │ task message
+    ▼
 Redis
-
-    │
-
-    ▼
-
+    │
+    ▼
 Celery Worker
-
-    │
-
-    ▼
-
+    │
+    ▼
 Notification Service
-
-    │
-
-    ▼
-
+    │
+    ▼
 PostgreSQL
-
 ```
 
 Scheduled execution uses Celery Beat:
 
 ```text
-
 Celery Beat
-
-    │
-
-    │ periodic task
-
-    ▼
-
+    │
+    │ periodic task
+    ▼
 Redis
-
-    │
-
-    ▼
-
+    │
+    ▼
 Celery Worker
-
-    │
-
-    ▼
-
+    │
+    ▼
 notifications.notify_due_soon_tasks
-
-    │
-
-    ▼
-
+    │
+    ▼
 Notification Service
-
-    │
-
-    ▼
-
+    │
+    ▼
 PostgreSQL
-
 ```
 
 The due-soon notification service is idempotent, preventing repeated executions from generating duplicate notifications for the same user and task.
+
+### Celery Resilience
+
+The due-soon Celery task includes bounded automatic retries for transient database connectivity failures, exponential backoff with jitter, execution time limits, and application logging.
+
+Database-backed uniqueness protects due-soon notification creation from duplicate delivery when a task is retried or multiple executions overlap.
 
 The business rules can therefore be tested synchronously without requiring Redis or a running Celery worker.
 
@@ -997,17 +777,11 @@ Celery is responsible for background execution, while the service layer remains 
 When a task is assigned or reassigned:
 
 ```text
-
 Task assigned
-
-      ↓
-
+      ↓
 new assignee
-
-      ↓
-
+      ↓
 TASK_ASSIGNED notification
-
 ```
 
 No notification is created when:
@@ -1037,21 +811,13 @@ The system avoids:
 A task is considered due soon when:
 
 ```text
-
 due_date > today
-
 AND
-
 due_date <= today + 7 days
-
 AND
-
 status != done
-
 AND
-
 assigned_to != null
-
 ```
 
 Repeated execution does not create duplicate due-soon notifications.
@@ -1083,11 +849,8 @@ On Windows, Docker Desktop can use WSL 2 as its Linux container backend.
 ## Clone the Repository
 
 ```bash
-
 git clone <repository-url>
-
 cd teamflow
-
 ```
 
 Replace `<repository-url>` with the actual repository URL.
@@ -1101,27 +864,20 @@ TeamFlow uses `uv` for dependency and virtual environment management.
 Run:
 
 ```bash
-
 uv sync
-
 ```
 
 `uv` will create the project's virtual environment automatically:
 
 ```text
-
 .venv/
-
 ```
 
 based on:
 
 ```text
-
 pyproject.toml
-
 uv.lock
-
 ```
 
 You do not need to manually create a virtual environment or use `pip install -r requirements.txt`.
@@ -1135,37 +891,33 @@ Create a `.env` file based on `.env.example`.
 Example development configuration:
 
 ```env
-
 DJANGO_SECRET_KEY=your-local-secret-key
-
 DJANGO_DEBUG=True
-
 DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
-
 DB_NAME=teamflow
-
 DB_USER=teamflow_user
-
 DB_PASSWORD=your-local-database-password
-
 DB_HOST=localhost
-
 DB_PORT=5432
-
 CELERY_BROKER_URL=redis://localhost:6379/0
+DJANGO_CACHE_URL=redis://localhost:6379/1
+
+DJANGO_TRUST_PROXY_SSL_HEADER=False
+DJANGO_LOG_LEVEL=INFO
 
 DJANGO_SECURE_SSL_REDIRECT=False
-
 DJANGO_SESSION_COOKIE_SECURE=False
-
 DJANGO_CSRF_COOKIE_SECURE=False
-
 DJANGO_SECURE_HSTS_SECONDS=0
-
 DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS=False
-
 DJANGO_SECURE_HSTS_PRELOAD=False
 
+GUNICORN_BIND=0.0.0.0:8000
+GUNICORN_WORKERS=2
+GUNICORN_THREADS=2
+GUNICORN_TIMEOUT=30
+GUNICORN_GRACEFUL_TIMEOUT=30
+GUNICORN_KEEPALIVE=5
 ```
 
 Never commit `.env` or real credentials to the repository.
@@ -1181,7 +933,6 @@ Security-sensitive Django settings are controlled through environment variables.
 TeamFlow supports configuration for:
 
 ```text
-
 DJANGO_DEBUG
 
 DJANGO_ALLOWED_HOSTS
@@ -1198,6 +949,23 @@ DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS
 
 DJANGO_SECURE_HSTS_PRELOAD
 
+DJANGO_TRUST_PROXY_SSL_HEADER
+
+DJANGO_CACHE_URL
+
+DJANGO_LOG_LEVEL
+
+GUNICORN_BIND
+
+GUNICORN_WORKERS
+
+GUNICORN_THREADS
+
+GUNICORN_TIMEOUT
+
+GUNICORN_GRACEFUL_TIMEOUT
+
+GUNICORN_KEEPALIVE
 ```
 
 This allows development and production environments to use different security policies without modifying source code.
@@ -1205,14 +973,22 @@ This allows development and production environments to use different security po
 Django deployment checks can be executed with:
 
 ```bash
-
 uv run python manage.py check --deploy
-
 ```
 
-A hardened production-like configuration has been validated using Django's deployment system checks.
+Django deployment checks are included as part of the production-readiness workflow.
+
+Local development intentionally keeps HTTPS-only settings such as SSL redirects, secure cookies, and HSTS disabled. Production values are supplied through environment variables and should be validated with `python manage.py check --deploy` before deployment.
 
 HSTS subdomain and preload policies remain configurable because their final values depend on the production domain, HTTPS topology, and reverse-proxy configuration.
+
+### Reverse Proxy and Runtime Hardening
+
+When deployed behind a trusted reverse proxy such as an AWS Application Load Balancer, TeamFlow can use `X-Forwarded-Proto` to determine whether the original client request used HTTPS. Trust in this header is controlled explicitly through `DJANGO_TRUST_PROXY_SSL_HEADER`.
+
+The health and readiness endpoints remain compatible with internal load-balancer health checks even when application hosts are restricted through `ALLOWED_HOSTS`.
+
+Production containers run application processes as the unprivileged `teamflow` user rather than as root. Gunicorn worker, thread, timeout, graceful-shutdown, and keep-alive settings are configurable through environment variables.
 
 ---
 
@@ -1221,43 +997,32 @@ HSTS subdomain and preload policies remain configurable because their final valu
 Create a PostgreSQL application user:
 
 ```sql
-
 CREATE ROLE teamflow_user WITH LOGIN;
-
 ```
 
 Set its password securely from PostgreSQL:
 
 ```text
-
 \password teamflow_user
-
 ```
 
 Create the database:
 
 ```sql
-
 CREATE DATABASE teamflow
-
-    OWNER teamflow_user;
-
+    OWNER teamflow_user;
 ```
 
 For local automated testing, the database user also needs permission to create the temporary test database:
 
 ```sql
-
 ALTER ROLE teamflow_user CREATEDB;
-
 ```
 
 The `CREATEDB` permission is useful for local testing because pytest/Django creates a temporary database such as:
 
 ```text
-
 test_teamflow
-
 ```
 
 This permission should not normally be granted to the application's database user in production.
@@ -1269,41 +1034,31 @@ This permission should not normally be granted to the application's database use
 Run:
 
 ```bash
-
 uv run python manage.py migrate
-
 ```
 
 Check the Django configuration:
 
 ```bash
-
 uv run python manage.py check
-
 ```
 
 Expected result:
 
 ```text
-
 System check identified no issues
-
 ```
 
 Verify that model changes have corresponding migrations:
 
 ```bash
-
 uv run python manage.py makemigrations --check --dry-run
-
 ```
 
 Expected result:
 
 ```text
-
 No changes detected
-
 ```
 
 ---
@@ -1313,15 +1068,10 @@ No changes detected
 The local Docker Compose stack currently contains:
 
 ```text
-
 web
-
 redis
-
 celery-worker
-
 celery-beat
-
 ```
 
 The web container runs Django through Gunicorn.
@@ -1335,63 +1085,49 @@ Celery Beat schedules periodic jobs.
 Start the complete stack with:
 
 ```bash
-
 docker compose up -d
-
 ```
 
 Check the status:
 
 ```bash
-
 docker compose ps
-
 ```
 
 Validate the Compose configuration without printing resolved environment values:
 
 ```bash
-
 docker compose config --quiet
-
 ```
 
 Stop all containers with:
 
 ```bash
-
 docker compose down
-
 ```
 
 ---
 
 ## Redis
 
-Redis is used as the Celery message broker.
+Redis is used both as the Celery message broker and as Django's cache backend for request throttling.
 
 Test Redis:
 
 ```bash
-
 docker compose exec redis redis-cli ping
-
 ```
 
 Expected response:
 
 ```text
-
 PONG
-
 ```
 
 Redis is mapped locally to:
 
 ```text
-
 127.0.0.1:6379
-
 ```
 
 rather than being unnecessarily exposed to the entire local network.
@@ -1403,9 +1139,7 @@ rather than being unnecessarily exposed to the entire local network.
 Celery is integrated with Django through:
 
 ```text
-
 config/celery.py
-
 ```
 
 Celery automatically discovers tasks defined inside Django applications.
@@ -1413,17 +1147,13 @@ Celery automatically discovers tasks defined inside Django applications.
 The notifications application defines:
 
 ```text
-
 notifications.notify_due_soon_tasks
-
 ```
 
 The task delegates business logic to:
 
 ```text
-
 apps/notifications/services.py
-
 ```
 
 instead of duplicating notification rules inside the Celery task itself.
@@ -1433,9 +1163,7 @@ The worker runs as a Linux container through Docker Compose.
 Check worker connectivity with:
 
 ```bash
-
 docker compose exec celery-worker celery -A config inspect ping
-
 ```
 
 A healthy worker should respond with a `pong`.
@@ -1449,9 +1177,7 @@ Celery Beat runs as a separate Docker Compose service.
 It schedules:
 
 ```text
-
 notifications.notify_due_soon_tasks
-
 ```
 
 which is delivered through Redis and executed by the Celery worker.
@@ -1459,20 +1185,26 @@ which is delivered through Redis and executed by the Celery worker.
 This keeps scheduling and task execution as separate processes:
 
 ```text
-
 Celery Beat
-
-     ↓
-
+     ↓
 Redis
-
-     ↓
-
+     ↓
 Celery Worker
-
 ```
 
 Only one Beat scheduler should manage the same schedule to avoid duplicate periodic task dispatch.
+
+### Celery Beat Runtime State
+
+Celery Beat stores its local persistent schedule under:
+
+```text
+/home/teamflow/celerybeat-schedule
+```
+
+This keeps runtime state outside the application source directory and allows the scheduler to run as the unprivileged `teamflow` container user.
+
+The schedule file is runtime state and may be recreated when an ephemeral container is replaced.
 
 ---
 
@@ -1481,51 +1213,55 @@ Only one Beat scheduler should manage the same schedule to avoid duplicate perio
 The Docker image uses Gunicorn as the default web server:
 
 ```text
-
 Gunicorn
-
-   ↓
-
+   ↓
 Django WSGI
-
-   ↓
-
+   ↓
 Django REST Framework
-
 ```
 
 Django's `runserver` remains useful for local development, but the containerized web service runs through Gunicorn to provide a production-oriented execution model.
 
+### Gunicorn Configuration
+
+Gunicorn uses an explicit configuration defined in `gunicorn.conf.py`.
+
+The default container configuration uses:
+
+```text
+2 workers
+2 threads per worker
+30 second request timeout
+30 second graceful shutdown timeout
+5 second keep-alive
+```
+
+This means **2 worker processes × 2 threads each**. These values can be overridden through environment variables without rebuilding the Docker image.
+
+Gunicorn access and error logs are written to standard output and standard error so container platforms such as Docker and ECS can collect them directly.
+
 Start the web service with:
 
 ```bash
-
 docker compose up -d web
-
 ```
 
 Check its logs:
 
 ```bash
-
 docker compose logs --tail 50 web
-
 ```
 
 The local API is exposed at:
 
 ```text
-
 http://127.0.0.1:8000/
-
 ```
 
 Swagger UI is available at:
 
 ```text
-
 http://127.0.0.1:8000/api/docs/
-
 ```
 
 ---
@@ -1535,10 +1271,8 @@ http://127.0.0.1:8000/api/docs/
 TeamFlow exposes dedicated operational endpoints for container and load-balancer health checks.
 
 ```http
-
 GET /health/
 GET /ready/
-
 ```
 
 `/health/` is a lightweight liveness endpoint that verifies that the Django process can respond to HTTP requests without querying external dependencies.
@@ -1546,11 +1280,9 @@ GET /ready/
 Example response:
 
 ```json
-
 {
-"status": "ok"
+  "status": "ok"
 }
-
 ```
 
 `/ready/` is a readiness endpoint that performs a lightweight PostgreSQL connectivity check using `SELECT 1`.
@@ -1558,19 +1290,15 @@ Example response:
 When PostgreSQL is available:
 
 ```json
-
 {
-"status": "ready"
+  "status": "ready"
 }
-
 ```
 
 If the database is unavailable, the endpoint returns:
 
 ```text
-
 503 Service Unavailable
-
 ```
 
 The AWS Application Load Balancer uses `/ready/` as the ECS web service health check instead of using Swagger or another application endpoint.
@@ -1582,25 +1310,19 @@ The AWS Application Load Balancer uses `/ready/` as the ECS web service health c
 For development without the web container:
 
 ```bash
-
 uv run python manage.py runserver
-
 ```
 
 The API will be available locally at:
 
 ```text
-
 http://127.0.0.1:8000/
-
 ```
 
 Alternatively, run the complete containerized stack:
 
 ```bash
-
 docker compose up -d
-
 ```
 
 ---
@@ -1610,17 +1332,13 @@ docker compose up -d
 Run the complete test suite:
 
 ```bash
-
 uv run pytest
-
 ```
 
 The project currently contains:
 
 ```text
-
-204 passing tests
-
+225 passing tests
 ```
 
 The suite covers scenarios such as:
@@ -1721,6 +1439,8 @@ Examples include:
 
 - Project names are unique inside each team
 
+- Due-soon notifications are unique per user, task, and notification type
+
 Database indexes are used for commonly queried combinations such as:
 
 - Membership team and role
@@ -1732,6 +1452,8 @@ Database indexes are used for commonly queried combinations such as:
 - Task project and priority
 
 - Task assignee and status
+
+- Active assigned tasks by due date for due-soon processing
 
 - Comment task and creation date
 
@@ -1764,31 +1486,18 @@ The audit currently covers:
 Measured results include:
 
 ```text
-
 Tasks
-
-1 task  → 3 queries
-
+1 task  → 3 queries
 10 tasks → 3 queries
-
 Comments
-
-1 comment  → 3 queries
-
+1 comment  → 3 queries
 10 comments → 3 queries
-
 Projects
-
-1 project  → 2 queries
-
+1 project  → 2 queries
 10 projects → 2 queries
-
 Notifications
-
-1 notification  → 1 query
-
+1 notification  → 1 query
 10 notifications → 1 query
-
 ```
 
 During the audit, an N+1 query issue was identified in the team list serialization.
@@ -1796,21 +1505,15 @@ During the audit, an N+1 query issue was identified in the team list serializati
 Before optimization:
 
 ```text
-
-1 team  → 2 queries
-
+1 team  → 2 queries
 10 teams → 11 queries
-
 ```
 
 After optimization:
 
 ```text
-
-1 team  → 1 query
-
+1 team  → 1 query
 10 teams → 1 query
-
 ```
 
 The issue occurred because the queryset already calculated the member count through an annotation, but the serializer executed an additional count query for each team.
@@ -1820,11 +1523,8 @@ The serializer now reuses the annotated value instead of issuing per-object quer
 The dashboard also remains constant at:
 
 ```text
-
-Empty workload             → 5 queries
-
-10 projects / 100 tasks    → 5 queries
-
+Empty workload             → 5 queries
+10 projects / 100 tasks    → 5 queries
 ```
 
 These regression tests help prevent future N+1 problems from being introduced accidentally.
@@ -1879,11 +1579,29 @@ The project includes several security-oriented decisions:
 
 - HSTS is configurable per environment
 
-- Django deployment security checks have been validated with a hardened production-like configuration
+- Django deployment security checks are included in the production-readiness workflow
 
 - CI uses ephemeral credentials rather than development or production secrets
 
-HSTS preload, subdomain HSTS, and reverse-proxy SSL headers should only be finalized after the production domain and proxy topology are known.
+- Registration applies Django password validation rules
+
+- Authentication endpoints use scoped request throttling
+
+- Throttling state uses the configured Django cache backend
+
+- Team ownership transfer uses transactional row locking
+
+- Sensitive authorization decisions are revalidated inside database transactions
+
+- Containers run application processes as an unprivileged user
+
+- Trusted reverse-proxy SSL headers are explicitly configurable
+
+- Health checks remain compatible with restricted application hosts
+
+HSTS duration, subdomain coverage, and preload policy should only be finalized after the production domain and HTTPS topology are confirmed.
+
+`DJANGO_TRUST_PROXY_SSL_HEADER` should only be enabled when TeamFlow is running behind a trusted reverse proxy such as the configured AWS Application Load Balancer.
 
 ---
 
@@ -1894,11 +1612,8 @@ The project uses type information and editor tooling to improve code quality.
 Development dependencies include:
 
 ```text
-
 django-stubs
-
 djangorestframework-stubs
-
 ```
 
 These improve static analysis for Django and Django REST Framework.
@@ -1928,83 +1643,62 @@ TeamFlow uses `uv` instead of `pip + requirements.txt`.
 The main dependency files are:
 
 ```text
-
 pyproject.toml
-
 uv.lock
-
 ```
 
 ### Install or synchronize dependencies
 
 ```bash
-
 uv sync
-
 ```
 
 ### Install exactly the locked dependency graph
 
 ```bash
-
 uv sync --locked
-
 ```
 
 ### Add a production dependency
 
 ```bash
-
 uv add package-name
-
 ```
 
 ### Add a development dependency
 
 ```bash
-
 uv add --dev package-name
-
 ```
 
 ### Remove a dependency
 
 ```bash
-
 uv remove package-name
-
 ```
 
 ### View the dependency tree
 
 ```bash
-
 uv tree
-
 ```
 
 ### Run Python
 
 ```bash
-
 uv run python
-
 ```
 
 ### Run Django commands
 
 ```bash
-
 uv run python manage.py <command>
-
 ```
 
 ### Run tests
 
 ```bash
-
 uv run pytest
-
 ```
 
 `uv.lock` is committed to Git so the project can reproduce a consistent dependency graph across development environments and continuous integration.
@@ -2016,35 +1710,24 @@ uv run pytest
 A typical local workflow is:
 
 ```bash
-
 uv sync
-
 docker compose up -d
-
 uv run python manage.py migrate
-
 uv run python manage.py check
-
 uv run python manage.py spectacular --validate
-
 uv run pytest
-
 ```
 
 For development using Django's built-in server:
 
 ```bash
-
 uv run python manage.py runserver
-
 ```
 
 For the containerized production-oriented stack:
 
 ```bash
-
 docker compose up -d
-
 ```
 
 ---
@@ -2054,35 +1737,25 @@ docker compose up -d
 Before considering a change ready, TeamFlow can validate:
 
 ```bash
-
 uv run python manage.py check
-
 ```
 
 ```bash
-
 uv run python manage.py makemigrations --check --dry-run
-
 ```
 
 ```bash
-
 uv run python manage.py spectacular --validate
-
 ```
 
 ```bash
-
 uv run pytest
-
 ```
 
 For production-oriented configuration:
 
 ```bash
-
 uv run python manage.py check --deploy
-
 ```
 
 The same core checks are enforced automatically by GitHub Actions.
@@ -2127,7 +1800,7 @@ AI-generated suggestions were not incorporated blindly.
 
 Proposed solutions were reviewed, adapted to the project's architecture, verified against expected behavior, and validated through automated tests.
 
-The project currently contains **204 passing automated tests** covering business rules, permissions, database behavior, API endpoints, dashboards, notifications, Celery integration, OpenAPI contracts, and ORM query performance.
+The project currently contains **225 passing automated tests** covering business rules, permissions, database behavior, API endpoints, dashboards, notifications, Celery integration, OpenAPI contracts, and ORM query performance.
 
 ---
 
@@ -2217,7 +1890,15 @@ The backend currently includes:
 
 - Database performance audit
 
-- **204 automated tests**
+- Console application logging for containerized environments
+
+- Database readiness failure logging
+
+- Celery retry and execution logging
+
+- Team ownership and membership role change logging
+
+- **225 automated tests**
 
 ---
 
@@ -2225,27 +1906,23 @@ The backend currently includes:
 
 Future improvements include:
 
-- Production deployment
+- Coordinated pagination for teams, memberships, projects, and notifications
 
-- Continuous deployment pipeline
+- Separating dashboard summaries from complete project metric listings
 
-- Production reverse-proxy and TLS configuration
+- Production HTTPS/domain finalization
 
-- Production database provisioning
+- AWS WAF or edge-level rate limiting
 
-- Production Redis provisioning
-
-- Production Celery worker deployment
-
-- Production Celery Beat deployment
-
-- Structured application logging
+- Structured JSON application logging
 
 - Additional observability and monitoring
 
 - Error tracking
 
-- Frontend client
+- Automated continuous deployment
+
+- Load testing and Gunicorn capacity tuning
 
 ---
 
@@ -2305,4 +1982,4 @@ The project focuses on:
 
 **Omar López**
 
-Backend Developer focused on Python, Django, REST APIs, PostgreSQL, backend architecture, automated testing, asynchronous pr
+Backend Developer focused on Python, Django, REST APIs, PostgreSQL, Redis, Celery, AWS, automated testing, and backend architecture.

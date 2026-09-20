@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 
 from apps.tasks.models import Task
 
@@ -57,6 +58,21 @@ class Notification(models.Model):
 
     class Meta:
         ordering = ("-created_at",)
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=(
+                    "user",
+                    "task",
+                    "type",
+                ),
+                condition=Q(
+                    type="task_due_soon",
+                ),
+                name="unique_due_soon_user_task",
+            ),
+        ]
+
         indexes = [
             models.Index(
                 fields=("user", "is_read"),

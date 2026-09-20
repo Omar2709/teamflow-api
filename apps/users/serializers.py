@@ -1,6 +1,8 @@
 from typing import cast
 
+from django.contrib.auth import password_validation
 from django.contrib.auth.models import UserManager
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from .models import User
@@ -46,17 +48,53 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         password = attrs.get("password")
+
         password_confirmation = attrs.pop(
             "password_confirmation",
             None,
         )
 
         if password != password_confirmation:
-            raise serializers.ValidationError({
-                "password_confirmation": (
-                    "Las contraseñas no coinciden."
-                )
-            })
+            raise serializers.ValidationError(
+                {
+                    "password_confirmation": (
+                        "Las contraseñas no coinciden."
+                    )
+                }
+            )
+
+        candidate_user = User(
+            username=attrs.get(
+                "username",
+                "",
+            ),
+            email=attrs.get(
+                "email",
+                "",
+            ),
+            first_name=attrs.get(
+                "first_name",
+                "",
+            ),
+            last_name=attrs.get(
+                "last_name",
+                "",
+            ),
+        )
+
+        try:
+            password_validation.validate_password(
+                password=password,
+                user=candidate_user,
+            )
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(
+                {
+                    "password": list(
+                        exc.messages
+                    )
+                }
+            ) from exc
 
         return attrs
 

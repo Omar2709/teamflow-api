@@ -3,6 +3,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+    TokenVerifyView,
+)
+from rest_framework.throttling import ScopedRateThrottle
 from drf_spectacular.utils import extend_schema
 
 from .serializers import (
@@ -16,7 +22,46 @@ from .serializers import (
 
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
-    permission_classes = (permissions.AllowAny,)
+
+    permission_classes = (
+        permissions.AllowAny,
+    )
+
+    throttle_classes = (
+        ScopedRateThrottle,
+    )
+
+    throttle_scope = "auth_register"
+
+
+class ThrottledTokenObtainPairView(
+    TokenObtainPairView
+):
+    throttle_classes = (
+        ScopedRateThrottle,
+    )
+
+    throttle_scope = "auth_login"
+
+
+class ThrottledTokenRefreshView(
+    TokenRefreshView
+):
+    throttle_classes = (
+        ScopedRateThrottle,
+    )
+
+    throttle_scope = "auth_refresh"
+
+
+class ThrottledTokenVerifyView(
+    TokenVerifyView
+):
+    throttle_classes = (
+        ScopedRateThrottle,
+    )
+
+    throttle_scope = "auth_verify"
 
 
 class MeView(APIView):

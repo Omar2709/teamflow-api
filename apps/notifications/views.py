@@ -21,7 +21,6 @@ class NotificationListView(
             .filter(
                 user=self.request.user,
             )
-            .select_related("task")
             .order_by("-created_at")
         )
 
@@ -36,12 +35,8 @@ class NotificationMarkReadView(
     )
 
     def get_queryset(self):
-        return (
-            Notification.objects
-            .filter(
-                user=self.request.user,
-            )
-            .select_related("task")
+        return Notification.objects.filter(
+            user=self.request.user,
         )
 
     def patch(self, request, *args, **kwargs):

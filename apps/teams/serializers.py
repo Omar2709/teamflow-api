@@ -111,7 +111,6 @@ class TeamMembershipCreateSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         username = attrs["username"]
-        team = self.context["team"]
 
         user = User.objects.filter(
             username=username,
@@ -122,18 +121,6 @@ class TeamMembershipCreateSerializer(serializers.Serializer):
                 {
                     "username": (
                         "No existe un usuario con ese nombre."
-                    )
-                }
-            )
-
-        if Membership.objects.filter(
-            team=team,
-            user=user,
-        ).exists():
-            raise serializers.ValidationError(
-                {
-                    "username": (
-                        "Este usuario ya pertenece al equipo."
                     )
                 }
             )

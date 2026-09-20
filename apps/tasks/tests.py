@@ -2305,3 +2305,162 @@ def test_task_list_query_count_does_not_grow_per_task():
     ten_tasks_queries = count_task_list_queries()
 
     assert ten_tasks_queries <= one_task_queries + 1
+
+@pytest.mark.django_db
+def test_previous_assignee_cannot_update_task_after_reassignment():
+    owner = User.objects.create_user(
+        username="task_reassign_owner",
+        email="task_reassign_owner@example.com",
+        password="Password123!",
+    )
+
+    previous_assignee = User.objects.create_user(
+        username="previous_assignee",
+        email="previous_assignee@example.com",
+        password="Password123!",
+    )
+
+    new_assignee = User.objects.create_user(
+        username="new_assignee",
+        email="new_assignee@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo reasignación segura",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=previous_assignee,
+        role=Membership.Role.MEMBER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=new_assignee,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto reasignación segura",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea reasignable",
+        assigned_to=previous_assignee,
+        created_by=owner,
+    )
+
+    owner_client = APIClient()
+    owner_client.force_authenticate(
+        user=owner,
+    )
+
+    reassignment_response = owner_client.patch(
+        reverse(
+            "tasks:task-detail",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+                "pk": task.pk,
+            },
+        ),
+        {
+            "assigned_to": new_assignee.pk,
+        },
+        format="json",
+    )
+
+    assert (
+        reassignment_response.status_code
+        == status.HTTP_200_OK
+    )
+
+    # El antiguo asignado ya no debe poder modificar la tarea.
+    previous_member_client = APIClient()
+
+    previous_member_client.force_authenticate(
+        user=previous_assignee,
+    )
+
+    response = previous_member_client.patch(
+        reverse(
+            "tasks:task-detail",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+                "pk": task.pk,
+            },
+        ),
+        {
+            "status": Task.Status.IN_PROGRESS,
+        },
+        format="json",
+    )
+
+    assert (
+        response.status_code
+        == status.HTTP_403_FORBIDDEN
+    )
+
+    task.refresh_from_db()
+
+    assert (
+        task.assigned_to
+        == new_assignee
+    )
+
+    assert (
+        task.status
+        == Task.Status.TODO
+    )
+
+    # El nuevo asignado sí debe poder modificar el estado.
+    new_member_client = APIClient()
+
+    new_member_client.force_authenticate(
+        user=new_assignee,
+    )
+
+    response = new_member_client.patch(
+        reverse(
+            "tasks:task-detail",
+            kwargs={
+                "team_id": team.pk,
+                "project_id": project.pk,
+                "pk": task.pk,
+            },
+        ),
+        {
+            "status": Task.Status.IN_PROGRESS,
+        },
+        format="json",
+    )
+
+    assert (
+        response.status_code
+        == status.HTTP_200_OK
+    )
+
+    task.refresh_from_db()
+
+    assert (
+        task.assigned_to
+        == new_assignee
+    )
+
+    assert (
+        task.status
+        == Task.Status.IN_PROGRESS
+    )

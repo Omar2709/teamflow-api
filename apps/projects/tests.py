@@ -1269,3 +1269,116 @@ def test_project_list_query_count_does_not_grow_per_project():
     ten_projects_queries = len(queries)
 
     assert ten_projects_queries <= one_project_queries + 1
+
+@pytest.mark.django_db
+def test_duplicate_project_name_returns_400():
+    owner = User.objects.create_user(
+        username="duplicate_project_owner",
+        email="duplicate_project_owner@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo proyectos duplicados",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Project.objects.create(
+        team=team,
+        name="Backend API",
+        created_by=owner,
+    )
+
+    client = APIClient()
+    client.force_authenticate(
+        user=owner,
+    )
+
+    response = client.post(
+        reverse(
+            "projects:team-project-list-create",
+            kwargs={
+                "team_id": team.pk,
+            },
+        ),
+        {
+            "name": "Backend API",
+        },
+        format="json",
+    )
+
+    assert (
+        response.status_code
+        == status.HTTP_400_BAD_REQUEST
+    )
+
+    assert "name" in response.data
+
+    assert (
+        Project.objects.filter(
+            team=team,
+            name="Backend API",
+        ).count()
+        == 1
+    )
+
+@pytest.mark.django_db
+def test_same_project_name_is_allowed_in_different_teams():
+    first_owner = User.objects.create_user(
+        username="project_name_owner_one",
+        email="project_name_owner_one@example.com",
+        password="Password123!",
+    )
+
+    second_owner = User.objects.create_user(
+        username="project_name_owner_two",
+        email="project_name_owner_two@example.com",
+        password="Password123!",
+    )
+
+    first_team = Team.objects.create(
+        name="Equipo uno",
+        created_by=first_owner,
+    )
+
+    second_team = Team.objects.create(
+        name="Equipo dos",
+        created_by=second_owner,
+    )
+
+    Membership.objects.create(
+        team=first_team,
+        user=first_owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=second_team,
+        user=second_owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Project.objects.create(
+        team=first_team,
+        name="Backend API",
+        created_by=first_owner,
+    )
+
+    Project.objects.create(
+        team=second_team,
+        name="Backend API",
+        created_by=second_owner,
+    )
+
+    assert (
+        Project.objects.filter(
+            name="Backend API",
+        ).count()
+        == 2
+    )

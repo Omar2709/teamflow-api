@@ -1,3 +1,4 @@
+import logging
 from django.db import transaction
 from django.db.models import Count
 from rest_framework import generics, permissions, status
@@ -17,6 +18,9 @@ from .serializers import (
     TeamMembershipSerializer,
     TeamSerializer
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class TeamListCreateView(generics.ListCreateAPIView):
@@ -116,7 +120,8 @@ class TeamMembershipListView(
             "team": self.get_team(),
         }
 
-    def create(self, request, *args, **kwargs):
+    @transaction.atomic
+    def create(self, request, *_args, **_kwargs, ):
         team = self.get_team()
 
         requester_membership = Membership.objects.get(
@@ -151,11 +156,24 @@ class TeamMembershipListView(
                 "Un administrador solo puede agregar miembros."
             )
 
-        membership = Membership.objects.create(
-            team=team,
-            user=serializer.validated_data["user"],
-            role=role,
+        membership, created = (
+            Membership.objects.get_or_create(
+                team=team,
+                user=serializer.validated_data["user"],
+                defaults={
+                    "role": role,
+                },
+            )
         )
+
+        if not created:
+            raise ValidationError(
+                {
+                    "username": (
+                        "Este usuario ya pertenece al equipo."
+                    )
+                }
+            )
 
         output_serializer = TeamMembershipSerializer(
             membership,
@@ -236,6 +254,16 @@ class TeamMembershipRoleUpdateView(
 
         serializer.save()
 
+        logger.info(
+            "Team membership role updated.",
+            extra={
+                "team_id": team.pk,
+                "actor_user_id": request.user.pk,
+                "target_user_id": target_membership.user.pk,
+                "new_role": target_membership.role,
+            },
+        )
+
         output_serializer = TeamMembershipSerializer(
             target_membership,
         )
@@ -314,39 +342,18 @@ class TeamOwnershipTransferView(
 
     @transaction.atomic
     def post(self, request, *args, **kwargs):
-        team = get_object_or_404(
-            Team.objects.filter(
-                members=request.user,
-            ),
-            pk=self.kwargs["team_id"],
-        )
-
-        current_owner = get_object_or_404(
-            Membership,
-            team=team,
-            user=request.user,
-        )
-
-        if current_owner.role != Membership.Role.OWNER:
-            raise PermissionDenied(
-                "Solo el propietario puede transferir la propiedad."
-            )
-
         serializer = self.get_serializer(
             data=request.data,
         )
-
         serializer.is_valid(
             raise_exception=True,
         )
 
-        new_owner = get_object_or_404(
-            Membership.objects.select_related("user"),
-            team=team,
-            user_id=serializer.validated_data["user_id"],
-        )
+        new_owner_user_id = serializer.validated_data[
+            "user_id"
+        ]
 
-        if new_owner.user == request.user:
+        if new_owner_user_id == request.user.pk:
             raise ValidationError(
                 {
                     "user_id": (
@@ -356,19 +363,68 @@ class TeamOwnershipTransferView(
                 }
             )
 
+        team = get_object_or_404(
+            Team.objects.filter(
+                members=request.user,
+            ),
+            pk=self.kwargs["team_id"],
+        )
+
+        current_owner = get_object_or_404(
+            Membership.objects
+            .select_for_update()
+            .select_related("user"),
+            team=team,
+            user=request.user,
+        )
+
+        if (
+            current_owner.role
+            != Membership.Role.OWNER
+        ):
+            raise PermissionDenied(
+                "Solo el propietario puede transferir "
+                "la propiedad."
+            )
+
+        new_owner = get_object_or_404(
+            Membership.objects
+            .select_for_update()
+            .select_related("user"),
+            team=team,
+            user_id=new_owner_user_id,
+        )
+
         current_owner.role = Membership.Role.ADMIN
+
         current_owner.save(
-            update_fields=["role"],
+            update_fields=(
+                "role",
+            )
         )
 
         new_owner.role = Membership.Role.OWNER
+
         new_owner.save(
-            update_fields=["role"],
+            update_fields=(
+                "role",
+            )
+        )
+
+        logger.info(
+            "Team ownership transferred.",
+            extra={
+                "team_id": team.pk,
+                "previous_owner_id": request.user.pk,
+                "new_owner_id": new_owner.user.pk,
+            },
         )
 
         return Response(
             {
-                "message": "Propiedad transferida correctamente.",
+                "message": (
+                    "Propiedad transferida correctamente."
+                ),
                 "new_owner": TeamMembershipSerializer(
                     new_owner,
                 ).data,

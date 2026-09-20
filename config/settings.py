@@ -88,6 +88,29 @@ SECURE_HSTS_PRELOAD = os.getenv(
     "yes",
 }
 
+TRUST_PROXY_SSL_HEADER = os.getenv(
+    "DJANGO_TRUST_PROXY_SSL_HEADER",
+    "False",
+).lower() in {
+    "1",
+    "true",
+    "yes",
+}
+
+SECURE_PROXY_SSL_HEADER = (
+    (
+        "HTTP_X_FORWARDED_PROTO",
+        "https",
+    )
+    if TRUST_PROXY_SSL_HEADER
+    else None
+)
+
+SECURE_REDIRECT_EXEMPT = [
+    r"^health/$",
+    r"^ready/$",
+]
+
 
 # Application definition
 
@@ -114,7 +137,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
+    "config.middleware.ALBCompatibleCommonMiddleware",
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -152,6 +175,20 @@ DATABASES = {
         "PASSWORD": os.getenv("DB_PASSWORD"),
         "HOST": os.getenv("DB_HOST", "localhost"),
         "PORT": os.getenv("DB_PORT", "5432"),
+    }
+}
+
+CACHES = {
+    "default": {
+        "BACKEND": (
+            "django.core.cache.backends.redis."
+            "RedisCache"
+        ),
+        "LOCATION": os.getenv(
+            "DJANGO_CACHE_URL",
+            "redis://localhost:6379/1",
+        ),
+        "KEY_PREFIX": "teamflow",
     }
 }
 
@@ -205,6 +242,12 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": (
         "drf_spectacular.openapi.AutoSchema"
     ),
+    "DEFAULT_THROTTLE_RATES": {
+        "auth_register": "5/min",
+        "auth_login": "10/min",
+        "auth_refresh": "30/min",
+        "auth_verify": "60/min",
+    },
 }
 
 SIMPLE_JWT = {
@@ -271,5 +314,47 @@ SPECTACULAR_SETTINGS = {
             "apps.teams.models."
             "ASSIGNABLE_MEMBERSHIP_ROLE_CHOICES"
         ),
+    },
+}
+
+LOG_LEVEL = os.getenv(
+    "DJANGO_LOG_LEVEL",
+    "INFO",
+)
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "format": (
+                "%(asctime)s "
+                "%(levelname)s "
+                "%(name)s "
+                "%(message)s"
+            ),
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "standard",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": LOG_LEVEL,
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+        "apps": {
+            "handlers": ["console"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
     },
 }

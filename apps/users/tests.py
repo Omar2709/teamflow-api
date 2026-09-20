@@ -1,11 +1,59 @@
 import pytest
 from apps.users.models import User
+from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
 
+@pytest.fixture(autouse=True)
+def clear_throttle_cache():
+    cache.clear()
+
+    yield
+
+    cache.clear()
+
+
+@pytest.mark.django_db
+def test_registration_is_throttled_after_rate_limit():
+
+    client = APIClient()
+
+    payload = {
+        "username": "throttle_register_user",
+        "email": "throttle@example.com",
+        "first_name": "Throttle",
+        "last_name": "User",
+        "password": "Password123!",
+        "password_confirmation": (
+            "DifferentPassword123!"
+        ),
+    }
+
+    for _ in range(5):
+        response = client.post(
+            reverse("users:register"),
+            payload,
+            format="json",
+        )
+
+        assert (
+            response.status_code
+            == status.HTTP_400_BAD_REQUEST
+        )
+
+    response = client.post(
+        reverse("users:register"),
+        payload,
+        format="json",
+    )
+
+    assert (
+        response.status_code
+        == status.HTTP_429_TOO_MANY_REQUESTS
+    )
 
 
 @pytest.mark.django_db
@@ -135,6 +183,66 @@ def test_user_can_login_and_receive_jwt_tokens():
 
     assert len(response.data["access"]) > 0
     assert len(response.data["refresh"]) > 0
+
+@pytest.mark.django_db
+def test_registration_rejects_numeric_password():
+    client = APIClient()
+
+    payload = {
+        "username": "numeric_password_user",
+        "email": "numeric@example.com",
+        "first_name": "Numeric",
+        "last_name": "User",
+        "password": "12345678",
+        "password_confirmation": "12345678",
+    }
+
+    response = client.post(
+        reverse("users:register"),
+        payload,
+        format="json",
+    )
+
+    assert (
+        response.status_code
+        == status.HTTP_400_BAD_REQUEST
+    )
+
+    assert "password" in response.data
+
+    assert not User.objects.filter(
+        username="numeric_password_user",
+    ).exists()
+
+@pytest.mark.django_db
+def test_registration_rejects_password_too_similar_to_username():
+    client = APIClient()
+
+    payload = {
+        "username": "omarbackend",
+        "email": "omarbackend@example.com",
+        "first_name": "Omar",
+        "last_name": "Backend",
+        "password": "omarbackend123",
+        "password_confirmation": "omarbackend123",
+    }
+
+    response = client.post(
+        reverse("users:register"),
+        payload,
+        format="json",
+    )
+
+    assert (
+        response.status_code
+        == status.HTTP_400_BAD_REQUEST
+    )
+
+    assert "password" in response.data
+
+    assert not User.objects.filter(
+        username="omarbackend",
+    ).exists()
 
 @pytest.mark.django_db
 def test_login_rejects_invalid_password():
@@ -691,4 +799,47 @@ def test_openapi_schema_uses_explicit_role_enum_names():
         "admin",
         "member",
     }
+
+@pytest.mark.django_db
+def test_login_is_throttled_after_rate_limit():
+
+    User.objects.create_user(
+        username="throttled_login_user",
+        email="throttled_login@example.com",
+        password="Password123!",
+    )
+
+    client = APIClient()
+
+    payload = {
+        "username": "throttled_login_user",
+        "password": "WrongPassword123!",
+    }
+
+    for _ in range(10):
+        response = client.post(
+            reverse(
+                "users:token-obtain-pair"
+            ),
+            payload,
+            format="json",
+        )
+
+        assert (
+            response.status_code
+            == status.HTTP_401_UNAUTHORIZED
+        )
+
+    response = client.post(
+        reverse(
+            "users:token-obtain-pair"
+        ),
+        payload,
+        format="json",
+    )
+
+    assert (
+        response.status_code
+        == status.HTTP_429_TOO_MANY_REQUESTS
+    )
 

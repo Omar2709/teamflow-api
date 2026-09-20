@@ -7,6 +7,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, permissions
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.filters import OrderingFilter, SearchFilter
+from rest_framework.response import Response
 
 from apps.notifications.services import (
     create_task_assignment_notification,
@@ -180,37 +181,88 @@ class TaskDetailView(
             )
         )
 
+    @transaction.atomic
     def partial_update(
         self,
         request,
         *args,
         **kwargs,
     ):
-        task = self.get_object()
-
-        membership = Membership.objects.get(
-            team=task.project.team,
-            user=request.user,
+        task = get_object_or_404(
+            self.get_queryset().select_for_update(
+                of=("self",),
+            ),
+            pk=self.kwargs["pk"],
         )
 
-        if membership.role == Membership.Role.MEMBER:
-            if not isinstance(request.data, Mapping):
+        membership = (
+            Membership.objects
+            .select_for_update()
+            .filter(
+                team=task.project.team,
+                user=request.user,
+            )
+            .only(
+                "id",
+                "role",
+            )
+            .first()
+        )
+
+        if membership is None:
+            raise PermissionDenied(
+                "Ya no perteneces al equipo."
+            )
+
+        self.check_object_permissions(
+            request,
+            task,
+        )
+
+        if (
+            membership.role
+            == Membership.Role.MEMBER
+        ):
+            if not isinstance(
+                request.data,
+                Mapping,
+            ):
                 raise PermissionDenied(
                     "Los datos enviados deben ser un objeto."
                 )
-            allowed_fields = {"status"}
-            received_fields = set(request.data.keys())
 
-            if not received_fields.issubset(allowed_fields):
+            allowed_fields = {
+                "status",
+            }
+
+            received_fields = set(
+                request.data.keys()
+            )
+
+            if not received_fields.issubset(
+                allowed_fields
+            ):
                 raise PermissionDenied(
                     "Un miembro asignado solo puede cambiar "
                     "el estado de la tarea."
                 )
 
-        return super().partial_update(
-            request,
-            *args,
-            **kwargs,
+        serializer = self.get_serializer(
+            task,
+            data=request.data,
+            partial=True,
+        )
+
+        serializer.is_valid(
+            raise_exception=True,
+        )
+
+        self.perform_update(
+            serializer,
+        )
+
+        return Response(
+            serializer.data,
         )
 
     def get_serializer_context(self):

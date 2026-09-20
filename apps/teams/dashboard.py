@@ -171,8 +171,14 @@ class TeamDashboardView(APIView):
             .filter(
                 team=team,
             )
+            .values(
+                "id",
+                "name",
+            )
             .annotate(
-                task_total=Count("tasks"),
+                task_total=Count(
+                    "tasks",
+                ),
                 task_todo=Count(
                     "tasks",
                     filter=Q(
@@ -197,15 +203,21 @@ class TeamDashboardView(APIView):
 
         project_breakdown = [
             {
-                "id": project.pk,
-                "name": project.name,
+                "id": project["id"],
+                "name": project["name"],
                 "tasks": {
-                    "total": getattr(project, "task_total"),
-                    "todo": getattr(project, "task_todo"),
-                    "in_progress": (
-                        getattr(project, "task_in_progress")
-                    ),
-                    "done": getattr(project, "task_done"),
+                    "total": project[
+                        "task_total"
+                    ],
+                    "todo": project[
+                        "task_todo"
+                    ],
+                    "in_progress": project[
+                        "task_in_progress"
+                    ],
+                    "done": project[
+                        "task_done"
+                    ],
                 },
             }
             for project in projects

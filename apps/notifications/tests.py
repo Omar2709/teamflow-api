@@ -1,7 +1,16 @@
 import pytest
+from typing import Any, Protocol, cast
+
+from celery.exceptions import Retry
+from celery.result import EagerResult
 from celery.schedules import crontab
 from django.urls import reverse
-from django.db import connection
+from django.db import (
+    IntegrityError,
+    InterfaceError,
+    OperationalError,
+    connection,
+)
 from django.test.utils import CaptureQueriesContext
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -22,6 +31,26 @@ from apps.notifications.services import (
     create_due_soon_notifications,
 )
 from .models import Notification
+
+
+class CeleryApplicableTask(Protocol):
+    def apply(
+        self,
+        args: tuple[Any, ...] | None = None,
+        kwargs: dict[str, Any] | None = None,
+        **options: Any,
+    ) -> EagerResult:
+        ...
+
+
+class SupportsCeleryApply(Protocol):
+    def apply(
+        self,
+        args: tuple[Any, ...] | None = None,
+        kwargs: dict[str, Any] | None = None,
+        **options: Any,
+    ) -> Any:
+        ...
 
 @pytest.mark.django_db
 def test_user_can_list_only_own_notifications():
@@ -1494,6 +1523,94 @@ def test_due_soon_periodic_schedule_uses_crontab():
         crontab,
     )
 
+@pytest.mark.django_db
+def test_database_rejects_duplicate_due_soon_notification():
+    owner = User.objects.create_user(
+        username="due_constraint_owner",
+        email="due_constraint_owner@example.com",
+        password="Password123!",
+    )
+
+    member = User.objects.create_user(
+        username="due_constraint_member",
+        email="due_constraint_member@example.com",
+        password="Password123!",
+    )
+
+    team = Team.objects.create(
+        name="Equipo constraint",
+        created_by=owner,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=owner,
+        role=Membership.Role.OWNER,
+    )
+
+    Membership.objects.create(
+        team=team,
+        user=member,
+        role=Membership.Role.MEMBER,
+    )
+
+    project = Project.objects.create(
+        team=team,
+        name="Proyecto constraint",
+        created_by=owner,
+    )
+
+    task = Task.objects.create(
+        project=project,
+        title="Tarea constraint",
+        assigned_to=member,
+        due_date=(
+            timezone.localdate()
+            + timedelta(days=2)
+        ),
+        created_by=owner,
+    )
+
+    Notification.objects.create(
+        user=member,
+        task=task,
+        type=Notification.Type.TASK_DUE_SOON,
+        message="Primera notificación.",
+    )
+
+    with pytest.raises(IntegrityError):
+        Notification.objects.create(
+            user=member,
+            task=task,
+            type=Notification.Type.TASK_DUE_SOON,
+            message="Duplicada.",
+        )
+
+@pytest.mark.django_db
+def test_database_allows_repeated_assignment_notifications():
+    user = User.objects.create_user(
+        username="assignment_constraint_user",
+        email="assignment_constraint@example.com",
+        password="Password123!",
+    )
+
+    Notification.objects.create(
+        user=user,
+        type=Notification.Type.TASK_ASSIGNED,
+        message="Asignación 1.",
+    )
+
+    Notification.objects.create(
+        user=user,
+        type=Notification.Type.TASK_ASSIGNED,
+        message="Asignación 2.",
+    )
+
+    assert Notification.objects.filter(
+        user=user,
+        type=Notification.Type.TASK_ASSIGNED,
+    ).count() == 2
+
 def test_celery_loads_due_soon_beat_schedule():
     assert (
         "notify-due-soon-tasks-daily"
@@ -1562,3 +1679,86 @@ def test_notification_list_query_count_does_not_grow_per_notification():
     ten_notifications_queries = len(queries)
 
     assert ten_notifications_queries <= one_notification_queries + 1
+
+def test_due_soon_task_has_retry_policy():
+    assert set(
+        notify_due_soon_tasks.autoretry_for
+    ) == {
+        OperationalError,
+        InterfaceError,
+    }
+
+    assert (
+        notify_due_soon_tasks.max_retries
+        == 5
+    )
+
+    assert (
+        notify_due_soon_tasks.retry_backoff
+        == 5
+    )
+
+    assert (
+        notify_due_soon_tasks.retry_backoff_max
+        == 300
+    )
+
+    assert (
+        notify_due_soon_tasks.retry_jitter
+        is True
+    )
+
+def test_due_soon_task_has_time_limits():
+    assert (
+        notify_due_soon_tasks.soft_time_limit
+        == 120
+    )
+
+    assert (
+        notify_due_soon_tasks.time_limit
+        == 150
+    )
+
+@pytest.mark.django_db
+def test_due_soon_task_logs_created_notification_count(
+    caplog,
+):
+    with caplog.at_level(
+        "INFO",
+        logger="apps.notifications.tasks",
+    ):
+        result = notify_due_soon_tasks()
+
+    assert result == 0
+
+    assert (
+        "Due-soon notification task completed."
+        in caplog.text
+    )
+
+    assert "created=0" in caplog.text
+
+@pytest.mark.django_db
+def test_due_soon_task_retries_transient_database_error(
+    monkeypatch,
+):
+    def raise_operational_error():
+        raise OperationalError(
+            "Database temporarily unavailable"
+        )
+
+    monkeypatch.setattr(
+        "apps.notifications.tasks."
+        "create_due_soon_notifications",
+        raise_operational_error,
+    )
+
+    celery_task = cast(
+        SupportsCeleryApply,
+        notify_due_soon_tasks,
+    )
+
+    with pytest.raises(Retry):
+        celery_task.apply(
+            throw=True,
+        )

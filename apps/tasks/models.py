@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 
 from apps.projects.models import Project
 
@@ -83,6 +84,18 @@ class Task(models.Model):
             models.Index(
                 fields=("assigned_to", "status"),
                 name="task_assignee_status_idx",
+            ),
+            models.Index(
+                fields=("due_date",),
+                condition=(
+                    Q(
+                        assigned_to__isnull=False,
+                    )
+                    & ~Q(
+                        status="done",
+                    )
+                ),
+                name="task_due_active_idx",
             ),
         ]
 

@@ -1,6 +1,10 @@
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import (
+    PermissionDenied,
+    ValidationError,
+)
 
 from apps.teams.models import Membership, Team
 
@@ -68,10 +72,44 @@ class TeamProjectListCreateView(
         )
 
     def perform_create(self, serializer):
-        serializer.save(
-            team=self.get_team(),
-            created_by=self.request.user,
-        )
+        team = self.get_team()
+
+        try:
+            with transaction.atomic():
+                serializer.save(
+                    team=team,
+                    created_by=self.request.user,
+                )
+
+        except IntegrityError as exc:
+            cause = exc.__cause__
+
+            diag = getattr(
+                cause,
+                "diag",
+                None,
+            )
+
+            constraint_name = getattr(
+                diag,
+                "constraint_name",
+                None,
+            )
+
+            if (
+                constraint_name
+                == "unique_project_name_per_team"
+            ):
+                raise ValidationError(
+                    {
+                        "name": (
+                            "Ya existe un proyecto con este "
+                            "nombre en el equipo."
+                        )
+                    }
+                ) from exc
+
+            raise
 
 class ProjectDetailView(
     generics.RetrieveUpdateDestroyAPIView
