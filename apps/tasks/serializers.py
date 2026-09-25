@@ -1,13 +1,11 @@
 from django.contrib.auth import get_user_model
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from drf_spectacular.utils import extend_schema_field
-
-from apps.users.serializers import UserSummarySerializer
 from apps.teams.models import Membership
+from apps.users.serializers import UserSummarySerializer
 
 from .models import Task
-
 
 User = get_user_model()
 
@@ -26,7 +24,7 @@ class TaskSerializer(serializers.ModelSerializer):
         allow_null=True,
     )
 
-    class Meta:         # pyright: ignore[reportIncompatibleVariableOverride]
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         model = Task
         fields = (
             "id",

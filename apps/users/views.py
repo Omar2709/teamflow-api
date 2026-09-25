@@ -1,5 +1,7 @@
+from drf_spectacular.utils import extend_schema
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -8,8 +10,6 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
     TokenVerifyView,
 )
-from rest_framework.throttling import ScopedRateThrottle
-from drf_spectacular.utils import extend_schema
 
 from .serializers import (
     CurrentUserResponseSerializer,
@@ -23,43 +23,27 @@ from .serializers import (
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
 
-    permission_classes = (
-        permissions.AllowAny,
-    )
+    permission_classes = (permissions.AllowAny,)
 
-    throttle_classes = (
-        ScopedRateThrottle,
-    )
+    throttle_classes = (ScopedRateThrottle,)
 
     throttle_scope = "auth_register"
 
 
-class ThrottledTokenObtainPairView(
-    TokenObtainPairView
-):
-    throttle_classes = (
-        ScopedRateThrottle,
-    )
+class ThrottledTokenObtainPairView(TokenObtainPairView):
+    throttle_classes = (ScopedRateThrottle,)
 
     throttle_scope = "auth_login"
 
 
-class ThrottledTokenRefreshView(
-    TokenRefreshView
-):
-    throttle_classes = (
-        ScopedRateThrottle,
-    )
+class ThrottledTokenRefreshView(TokenRefreshView):
+    throttle_classes = (ScopedRateThrottle,)
 
     throttle_scope = "auth_refresh"
 
 
-class ThrottledTokenVerifyView(
-    TokenVerifyView
-):
-    throttle_classes = (
-        ScopedRateThrottle,
-    )
+class ThrottledTokenVerifyView(TokenVerifyView):
+    throttle_classes = (ScopedRateThrottle,)
 
     throttle_scope = "auth_verify"
 
@@ -70,10 +54,7 @@ class MeView(APIView):
     @extend_schema(
         tags=["auth"],
         summary="Obtener usuario autenticado",
-        description=(
-            "Devuelve la información del usuario "
-            "autenticado mediante JWT."
-        ),
+        description=("Devuelve la información del usuario autenticado mediante JWT."),
         responses={
             200: CurrentUserResponseSerializer,
         },
@@ -81,10 +62,12 @@ class MeView(APIView):
     def get(self, request):
         serializer = UserSerializer(request.user)
 
-        return Response({
-            "message": "Usuario autenticado.",
-            "data": serializer.data,
-        })
+        return Response(
+            {
+                "message": "Usuario autenticado.",
+                "data": serializer.data,
+            }
+        )
 
 
 class LogoutView(APIView):
@@ -94,8 +77,7 @@ class LogoutView(APIView):
         tags=["auth"],
         summary="Cerrar sesión",
         description=(
-            "Invalida el refresh token proporcionado "
-            "para cerrar la sesión del usuario."
+            "Invalida el refresh token proporcionado para cerrar la sesión del usuario."
         ),
         request=LogoutRequestSerializer,
         responses={
@@ -103,17 +85,12 @@ class LogoutView(APIView):
             400: LogoutResponseSerializer,
         },
     )
-    
     def post(self, request):
         refresh_token = request.data.get("refresh")
 
         if not refresh_token:
             return Response(
-                {
-                    "message": (
-                        "Debes proporcionar el refresh token."
-                    )
-                },
+                {"message": ("Debes proporcionar el refresh token.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -122,12 +99,7 @@ class LogoutView(APIView):
             token.blacklist()
         except TokenError:
             return Response(
-                {
-                    "message": (
-                        "El refresh token no es válido "
-                        "o ya fue invalidado."
-                    )
-                },
+                {"message": ("El refresh token no es válido o ya fue invalidado.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

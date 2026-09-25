@@ -1,0 +1,82 @@
+{
+    "version": "2.0.0",
+
+    "tasks": [
+        {
+            "label": "Ruff: lint",
+            "type": "shell",
+            "command": "uv run ruff check .",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            }
+        },
+        {
+            "label": "Ruff: format check",
+            "type": "shell",
+            "command": "uv run ruff format --check .",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Ruff: validar proyecto",
+            "dependsOn": [
+                "Ruff: lint",
+                "Ruff: format check"
+            ],
+            "dependsOrder": "sequence",
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Ruff: fix",
+            "type": "shell",
+            "command": "uv run ruff check . --fix",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            }
+        },
+        {
+            "label": "Ruff: format",
+            "type": "shell",
+            "command": "uv run ruff format .",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Ruff: corregir todo",
+            "dependsOn": [
+                "Ruff: fix",
+                "Ruff: format"
+            ],
+            "dependsOrder": "sequence",
+            "problemMatcher": []
+        }
+    ]
+}

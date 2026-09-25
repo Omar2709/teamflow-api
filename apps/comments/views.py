@@ -17,26 +17,20 @@ from .permissions import CanAccessComment
 from .serializers import CommentSerializer
 
 
-class TaskCommentListCreateView(
-    generics.ListCreateAPIView
-):
+class TaskCommentListCreateView(generics.ListCreateAPIView):
     serializer_class = CommentSerializer
 
-    permission_classes = (
-        permissions.IsAuthenticated,
-    )
+    permission_classes = (permissions.IsAuthenticated,)
 
     pagination_class = CommentPagination
 
     def get_task(self) -> Task:
         if not hasattr(self, "_task"):
             self._task = get_object_or_404(
-                Task.objects
-                .select_related(
+                Task.objects.select_related(
                     "project",
                     "project__team",
-                )
-                .filter(
+                ).filter(
                     project_id=self.kwargs["project_id"],
                     project__team_id=self.kwargs["team_id"],
                     project__team__members=self.request.user,
@@ -48,8 +42,7 @@ class TaskCommentListCreateView(
 
     def get_queryset(self) -> QuerySet[Comment]:
         return (
-            Comment.objects
-            .filter(
+            Comment.objects.filter(
                 task=self.get_task(),
             )
             .select_related(
@@ -74,9 +67,7 @@ class TaskCommentListCreateView(
         )
 
 
-class CommentDetailView(
-    generics.RetrieveUpdateDestroyAPIView
-):
+class CommentDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = CommentSerializer
 
     permission_classes = (
@@ -84,23 +75,21 @@ class CommentDetailView(
         CanAccessComment,
     )
 
-    http_method_names = [
+    http_method_names = (
         "get",
         "patch",
         "delete",
         "head",
         "options",
-    ]
+    )
 
     def get_task(self) -> Task:
         if not hasattr(self, "_task"):
             self._task = get_object_or_404(
-                Task.objects
-                .select_related(
+                Task.objects.select_related(
                     "project",
                     "project__team",
-                )
-                .filter(
+                ).filter(
                     project_id=self.kwargs["project_id"],
                     project__team_id=self.kwargs["team_id"],
                     project__team__members=self.request.user,
@@ -111,15 +100,11 @@ class CommentDetailView(
         return self._task
 
     def get_queryset(self) -> QuerySet[Comment]:
-        return (
-            Comment.objects
-            .filter(
-                task=self.get_task(),
-            )
-            .select_related(
-                "task",
-                "task__project",
-                "task__project__team",
-                "author",
-            )
+        return Comment.objects.filter(
+            task=self.get_task(),
+        ).select_related(
+            "task",
+            "task__project",
+            "task__project__team",
+            "author",
         )

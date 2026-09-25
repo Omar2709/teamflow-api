@@ -1,18 +1,18 @@
+from datetime import timedelta
+
 import pytest
-from django.urls import reverse
 from django.db import IntegrityError, connection
 from django.test.utils import CaptureQueriesContext
+from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
-from datetime import timedelta
-from django.utils import timezone
+
 from apps.projects.models import Project
 from apps.tasks.models import Task
 from apps.users.models import User
 
 from .models import Membership, Team
-
-
 
 
 @pytest.mark.django_db
@@ -55,6 +55,7 @@ def test_authenticated_user_can_create_team():
 
     assert membership.role == Membership.Role.OWNER
 
+
 @pytest.mark.django_db
 def test_unauthenticated_user_cannot_create_team():
     client = APIClient()
@@ -73,6 +74,7 @@ def test_unauthenticated_user_cannot_create_team():
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert Team.objects.count() == 0
     assert Membership.objects.count() == 0
+
 
 @pytest.mark.django_db
 def test_user_only_lists_teams_where_is_member():
@@ -125,12 +127,10 @@ def test_user_only_lists_teams_where_is_member():
     assert response.data[0]["id"] == own_team.pk
     assert response.data[0]["name"] == "Equipo visible"
 
-    returned_ids = {
-        team["id"]
-        for team in response.data
-    }
+    returned_ids = {team["id"] for team in response.data}
 
     assert other_team.pk not in returned_ids
+
 
 @pytest.mark.django_db
 def test_user_can_list_team_created_by_another_user_when_is_member():
@@ -181,6 +181,7 @@ def test_user_can_list_team_created_by_another_user_when_is_member():
     assert returned_team["created_by"]["id"] == owner.pk
     assert returned_team["member_count"] == 2
 
+
 def test_unauthenticated_user_cannot_list_teams():
     client = APIClient()
 
@@ -189,6 +190,7 @@ def test_unauthenticated_user_cannot_list_teams():
     )
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
 
 @pytest.mark.django_db
 def test_team_creation_rejects_name_with_only_spaces():
@@ -218,6 +220,7 @@ def test_team_creation_rejects_name_with_only_spaces():
     assert Team.objects.count() == 0
     assert Membership.objects.count() == 0
 
+
 @pytest.mark.django_db
 def test_team_creation_rejects_name_longer_than_120_characters():
     user = User.objects.create_user(
@@ -245,6 +248,7 @@ def test_team_creation_rejects_name_longer_than_120_characters():
 
     assert Team.objects.count() == 0
     assert Membership.objects.count() == 0
+
 
 @pytest.mark.django_db
 def test_authenticated_user_can_create_team_without_description():
@@ -285,6 +289,7 @@ def test_authenticated_user_can_create_team_without_description():
 
     assert membership.role == Membership.Role.OWNER
 
+
 @pytest.mark.django_db
 def test_team_creation_ignores_server_controlled_fields():
     authenticated_user = User.objects.create_user(
@@ -319,10 +324,7 @@ def test_team_creation_ignores_server_controlled_fields():
 
     assert response.status_code == status.HTTP_201_CREATED
 
-    assert (
-        response.data["created_by"]["id"]
-        == authenticated_user.pk
-    )
+    assert response.data["created_by"]["id"] == authenticated_user.pk
     assert response.data["member_count"] == 1
 
     team = Team.objects.get(id=response.data["id"])
@@ -340,6 +342,7 @@ def test_team_creation_ignores_server_controlled_fields():
         team=team,
         user=other_user,
     ).exists()
+
 
 @pytest.mark.django_db
 def test_team_member_can_retrieve_team_detail():
@@ -379,6 +382,7 @@ def test_team_member_can_retrieve_team_detail():
     assert response.data["created_by"]["id"] == owner.pk
     assert response.data["member_count"] == 1
 
+
 @pytest.mark.django_db
 def test_user_cannot_retrieve_team_where_is_not_member():
     owner = User.objects.create_user(
@@ -417,6 +421,7 @@ def test_user_cannot_retrieve_team_where_is_not_member():
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert "detail" in response.data
+
 
 @pytest.mark.django_db
 def test_team_owner_can_update_team():
@@ -467,6 +472,7 @@ def test_team_owner_can_update_team():
     assert team.name == "Equipo actualizado"
     assert team.description == "Descripción actualizada."
     assert team.created_by == owner
+
 
 @pytest.mark.django_db
 def test_team_admin_can_update_team():
@@ -530,6 +536,7 @@ def test_team_admin_can_update_team():
     assert team.description == payload["description"]
     assert team.created_by == owner
 
+
 @pytest.mark.django_db
 def test_team_member_cannot_update_team():
     owner = User.objects.create_user(
@@ -587,6 +594,7 @@ def test_team_member_cannot_update_team():
     assert team.description == "Descripción original."
     assert team.created_by == owner
 
+
 def test_unauthenticated_user_cannot_retrieve_team_detail():
     client = APIClient()
 
@@ -598,6 +606,7 @@ def test_unauthenticated_user_cannot_retrieve_team_detail():
     )
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
 
 def test_unauthenticated_user_cannot_update_team():
     client = APIClient()
@@ -614,6 +623,7 @@ def test_unauthenticated_user_cannot_update_team():
     )
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
 
 @pytest.mark.django_db
 def test_outsider_cannot_update_team():
@@ -662,6 +672,7 @@ def test_outsider_cannot_update_team():
     assert team.name == "Equipo privado"
     assert team.description == "Descripción original."
 
+
 @pytest.mark.django_db
 def test_team_owner_can_update_only_name():
     owner = User.objects.create_user(
@@ -698,15 +709,13 @@ def test_team_owner_can_update_only_name():
 
     assert response.status_code == status.HTTP_200_OK
     assert response.data["name"] == "Nuevo nombre"
-    assert (
-        response.data["description"]
-        == "Descripción que debe conservarse."
-    )
+    assert response.data["description"] == "Descripción que debe conservarse."
 
     team.refresh_from_db()
 
     assert team.name == "Nuevo nombre"
     assert team.description == "Descripción que debe conservarse."
+
 
 @pytest.mark.django_db
 def test_team_owner_can_update_only_description():
@@ -751,6 +760,7 @@ def test_team_owner_can_update_only_description():
     assert team.name == "Nombre que debe conservarse"
     assert team.description == "Nueva descripción."
 
+
 @pytest.mark.django_db
 def test_team_update_rejects_name_with_only_spaces():
     owner = User.objects.create_user(
@@ -792,6 +802,7 @@ def test_team_update_rejects_name_with_only_spaces():
 
     assert team.name == "Nombre válido"
 
+
 @pytest.mark.django_db
 def test_team_update_rejects_name_longer_than_120_characters():
     owner = User.objects.create_user(
@@ -831,6 +842,7 @@ def test_team_update_rejects_name_longer_than_120_characters():
     team.refresh_from_db()
 
     assert team.name == "Nombre original"
+
 
 @pytest.mark.django_db
 def test_team_update_ignores_created_by():
@@ -882,6 +894,7 @@ def test_team_update_ignores_created_by():
     assert team.created_by == owner
     assert team.created_by != other_user
 
+
 @pytest.mark.django_db
 def test_team_update_ignores_member_count():
     owner = User.objects.create_user(
@@ -918,9 +931,13 @@ def test_team_update_ignores_member_count():
     assert response.status_code == status.HTTP_200_OK
     assert response.data["member_count"] == 1
 
-    assert Membership.objects.filter(
-        team=team,
-    ).count() == 1
+    assert (
+        Membership.objects.filter(
+            team=team,
+        ).count()
+        == 1
+    )
+
 
 @pytest.mark.django_db
 def test_team_detail_rejects_put_method():
@@ -963,6 +980,7 @@ def test_team_detail_rejects_put_method():
 
     assert team.name == "Equipo PUT"
     assert team.description == "Descripción original."
+
 
 @pytest.mark.django_db
 def test_team_owner_can_list_members():
@@ -1009,10 +1027,7 @@ def test_team_owner_can_list_members():
     assert response.status_code == status.HTTP_200_OK
     assert len(response.data) == 2
 
-    members_by_username = {
-        item["username"]: item
-        for item in response.data
-    }
+    members_by_username = {item["username"]: item for item in response.data}
 
     assert "owner_list_members" in members_by_username
     assert "member_list_members" in members_by_username
@@ -1030,6 +1045,7 @@ def test_team_owner_can_list_members():
     assert member_data["email"] == member.email
     assert member_data["role"] == Membership.Role.MEMBER
     assert "joined_at" in member_data
+
 
 @pytest.mark.django_db
 def test_team_admin_can_list_members():
@@ -1075,13 +1091,11 @@ def test_team_admin_can_list_members():
     assert response.status_code == status.HTTP_200_OK
     assert len(response.data) == 2
 
-    returned_usernames = {
-        item["username"]
-        for item in response.data
-    }
+    returned_usernames = {item["username"] for item in response.data}
 
     assert owner.username in returned_usernames
     assert admin.username in returned_usernames
+
 
 @pytest.mark.django_db
 def test_team_member_can_list_members():
@@ -1127,13 +1141,11 @@ def test_team_member_can_list_members():
     assert response.status_code == status.HTTP_200_OK
     assert len(response.data) == 2
 
-    returned_usernames = {
-        item["username"]
-        for item in response.data
-    }
+    returned_usernames = {item["username"] for item in response.data}
 
     assert owner.username in returned_usernames
     assert member.username in returned_usernames
+
 
 @pytest.mark.django_db
 def test_outsider_cannot_list_team_members():
@@ -1173,6 +1185,7 @@ def test_outsider_cannot_list_team_members():
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert "detail" in response.data
 
+
 def test_unauthenticated_user_cannot_list_team_members():
     client = APIClient()
 
@@ -1184,6 +1197,7 @@ def test_unauthenticated_user_cannot_list_team_members():
     )
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
 
 @pytest.mark.django_db
 def test_team_owner_can_add_member():
@@ -1240,9 +1254,13 @@ def test_team_owner_can_add_member():
 
     assert membership.role == Membership.Role.MEMBER
 
-    assert Membership.objects.filter(
-        team=team,
-    ).count() == 2
+    assert (
+        Membership.objects.filter(
+            team=team,
+        ).count()
+        == 2
+    )
+
 
 @pytest.mark.django_db
 def test_team_admin_can_add_member():
@@ -1311,9 +1329,13 @@ def test_team_admin_can_add_member():
 
     assert membership.role == Membership.Role.MEMBER
 
-    assert Membership.objects.filter(
-        team=team,
-    ).count() == 3
+    assert (
+        Membership.objects.filter(
+            team=team,
+        ).count()
+        == 3
+    )
+
 
 @pytest.mark.django_db
 def test_team_member_cannot_add_member():
@@ -1374,9 +1396,13 @@ def test_team_member_cannot_add_member():
         user=new_user,
     ).exists()
 
-    assert Membership.objects.filter(
-        team=team,
-    ).count() == 2
+    assert (
+        Membership.objects.filter(
+            team=team,
+        ).count()
+        == 2
+    )
+
 
 @pytest.mark.django_db
 def test_cannot_add_same_user_twice_to_team():
@@ -1435,9 +1461,13 @@ def test_cannot_add_same_user_twice_to_team():
         == 1
     )
 
-    assert Membership.objects.filter(
-        team=team,
-    ).count() == 2
+    assert (
+        Membership.objects.filter(
+            team=team,
+        ).count()
+        == 2
+    )
+
 
 @pytest.mark.django_db
 def test_cannot_add_nonexistent_user_to_team():
@@ -1476,13 +1506,20 @@ def test_cannot_add_nonexistent_user_to_team():
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert "username" in response.data
 
-    assert Membership.objects.filter(
-        team=team,
-    ).count() == 1
+    assert (
+        Membership.objects.filter(
+            team=team,
+        ).count()
+        == 1
+    )
 
-    assert Membership.objects.filter(
-        team=team,
-    ).count() == 1
+    assert (
+        Membership.objects.filter(
+            team=team,
+        ).count()
+        == 1
+    )
+
 
 @pytest.mark.django_db
 def test_team_owner_can_promote_member_to_admin():
@@ -1542,6 +1579,7 @@ def test_team_owner_can_promote_member_to_admin():
 
     assert membership.role == Membership.Role.ADMIN
 
+
 @pytest.mark.django_db
 def test_team_owner_can_demote_admin_to_member():
     owner = User.objects.create_user(
@@ -1599,6 +1637,7 @@ def test_team_owner_can_demote_admin_to_member():
     membership.refresh_from_db()
 
     assert membership.role == Membership.Role.MEMBER
+
 
 @pytest.mark.django_db
 def test_team_admin_cannot_change_member_role():
@@ -1666,6 +1705,7 @@ def test_team_admin_cannot_change_member_role():
 
     assert member_membership.role == Membership.Role.MEMBER
 
+
 @pytest.mark.django_db
 def test_team_member_cannot_change_roles():
     owner = User.objects.create_user(
@@ -1732,6 +1772,7 @@ def test_team_member_cannot_change_roles():
 
     assert target_membership.role == Membership.Role.MEMBER
 
+
 @pytest.mark.django_db
 def test_team_owner_cannot_assign_owner_role_through_role_endpoint():
     owner = User.objects.create_user(
@@ -1787,16 +1828,20 @@ def test_team_owner_cannot_assign_owner_role_through_role_endpoint():
 
     assert member_membership.role == Membership.Role.MEMBER
 
-    assert Membership.objects.filter(
-        team=team,
-        role=Membership.Role.OWNER,
-    ).count() == 1
+    assert (
+        Membership.objects.filter(
+            team=team,
+            role=Membership.Role.OWNER,
+        ).count()
+        == 1
+    )
 
     assert Membership.objects.filter(
         team=team,
         user=owner,
         role=Membership.Role.OWNER,
     ).exists()
+
 
 @pytest.mark.django_db
 def test_team_owner_can_remove_member():
@@ -1855,9 +1900,13 @@ def test_team_owner_can_remove_member():
         role=Membership.Role.OWNER,
     ).exists()
 
-    assert Membership.objects.filter(
-        team=team,
-    ).count() == 1
+    assert (
+        Membership.objects.filter(
+            team=team,
+        ).count()
+        == 1
+    )
+
 
 @pytest.mark.django_db
 def test_team_owner_can_remove_admin():
@@ -1910,9 +1959,13 @@ def test_team_owner_can_remove_admin():
         user=admin,
     ).exists()
 
-    assert Membership.objects.filter(
-        team=team,
-    ).count() == 1
+    assert (
+        Membership.objects.filter(
+            team=team,
+        ).count()
+        == 1
+    )
+
 
 @pytest.mark.django_db
 def test_team_admin_can_remove_member():
@@ -1983,9 +2036,13 @@ def test_team_admin_can_remove_member():
         role=Membership.Role.ADMIN,
     ).exists()
 
-    assert Membership.objects.filter(
-        team=team,
-    ).count() == 2
+    assert (
+        Membership.objects.filter(
+            team=team,
+        ).count()
+        == 2
+    )
+
 
 @pytest.mark.django_db
 def test_team_admin_cannot_remove_owner_or_admin():
@@ -2069,9 +2126,13 @@ def test_team_admin_cannot_remove_owner_or_admin():
         role=Membership.Role.ADMIN,
     ).exists()
 
-    assert Membership.objects.filter(
-        team=team,
-    ).count() == 3
+    assert (
+        Membership.objects.filter(
+            team=team,
+        ).count()
+        == 3
+    )
+
 
 @pytest.mark.django_db
 def test_team_owner_cannot_leave_team():
@@ -2113,14 +2174,21 @@ def test_team_owner_cannot_leave_team():
         role=Membership.Role.OWNER,
     ).exists()
 
-    assert Membership.objects.filter(
-        team=team,
-        role=Membership.Role.OWNER,
-    ).count() == 1
+    assert (
+        Membership.objects.filter(
+            team=team,
+            role=Membership.Role.OWNER,
+        ).count()
+        == 1
+    )
 
-    assert Membership.objects.filter(
-        team=team,
-    ).count() == 1
+    assert (
+        Membership.objects.filter(
+            team=team,
+        ).count()
+        == 1
+    )
+
 
 @pytest.mark.django_db
 def test_team_owner_can_transfer_ownership():
@@ -2171,16 +2239,10 @@ def test_team_owner_can_transfer_ownership():
 
     assert response.status_code == status.HTTP_200_OK
 
-    assert (
-        response.data["message"]
-        == "Propiedad transferida correctamente."
-    )
+    assert response.data["message"] == "Propiedad transferida correctamente."
 
     assert response.data["new_owner"]["id"] == member.pk
-    assert (
-        response.data["new_owner"]["role"]
-        == Membership.Role.OWNER
-    )
+    assert response.data["new_owner"]["role"] == Membership.Role.OWNER
 
     owner_membership.refresh_from_db()
     member_membership.refresh_from_db()
@@ -2189,12 +2251,16 @@ def test_team_owner_can_transfer_ownership():
     assert owner_membership.role == Membership.Role.ADMIN
     assert member_membership.role == Membership.Role.OWNER
 
-    assert Membership.objects.filter(
-        team=team,
-        role=Membership.Role.OWNER,
-    ).count() == 1
+    assert (
+        Membership.objects.filter(
+            team=team,
+            role=Membership.Role.OWNER,
+        ).count()
+        == 1
+    )
 
     assert team.created_by == owner
+
 
 @pytest.mark.django_db
 def test_team_admin_cannot_transfer_ownership():
@@ -2261,6 +2327,7 @@ def test_team_admin_cannot_transfer_ownership():
     assert owner_membership.role == Membership.Role.OWNER
     assert member_membership.role == Membership.Role.MEMBER
 
+
 @pytest.mark.django_db
 def test_team_member_cannot_transfer_ownership():
     owner = User.objects.create_user(
@@ -2326,6 +2393,7 @@ def test_team_member_cannot_transfer_ownership():
     assert owner_membership.role == Membership.Role.OWNER
     assert target_membership.role == Membership.Role.MEMBER
 
+
 @pytest.mark.django_db
 def test_outsider_cannot_transfer_team_ownership():
     owner = User.objects.create_user(
@@ -2385,6 +2453,7 @@ def test_outsider_cannot_transfer_team_ownership():
     assert owner_membership.role == Membership.Role.OWNER
     assert member_membership.role == Membership.Role.MEMBER
 
+
 @pytest.mark.django_db
 def test_team_owner_cannot_transfer_ownership_to_outsider():
     owner = User.objects.create_user(
@@ -2435,10 +2504,14 @@ def test_team_owner_cannot_transfer_ownership_to_outsider():
         user=outsider,
     ).exists()
 
-    assert Membership.objects.filter(
-        team=team,
-        role=Membership.Role.OWNER,
-    ).count() == 1
+    assert (
+        Membership.objects.filter(
+            team=team,
+            role=Membership.Role.OWNER,
+        ).count()
+        == 1
+    )
+
 
 @pytest.mark.django_db
 def test_team_owner_cannot_transfer_ownership_to_self():
@@ -2480,10 +2553,14 @@ def test_team_owner_cannot_transfer_ownership_to_self():
 
     assert owner_membership.role == Membership.Role.OWNER
 
-    assert Membership.objects.filter(
-        team=team,
-        role=Membership.Role.OWNER,
-    ).count() == 1
+    assert (
+        Membership.objects.filter(
+            team=team,
+            role=Membership.Role.OWNER,
+        ).count()
+        == 1
+    )
+
 
 def test_unauthenticated_user_cannot_transfer_team_ownership():
     client = APIClient()
@@ -2500,6 +2577,7 @@ def test_unauthenticated_user_cannot_transfer_team_ownership():
     )
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
 
 @pytest.mark.django_db
 def test_previous_owner_cannot_transfer_ownership_again():
@@ -2562,10 +2640,7 @@ def test_previous_owner_cannot_transfer_ownership_again():
         format="json",
     )
 
-    assert (
-        first_response.status_code
-        == status.HTTP_200_OK
-    )
+    assert first_response.status_code == status.HTTP_200_OK
 
     second_response = client.post(
         reverse(
@@ -2580,44 +2655,28 @@ def test_previous_owner_cannot_transfer_ownership_again():
         format="json",
     )
 
-    assert (
-        second_response.status_code
-        == status.HTTP_403_FORBIDDEN
-    )
+    assert second_response.status_code == status.HTTP_403_FORBIDDEN
 
     owner_membership = Membership.objects.get(
         team=team,
         user=owner,
     )
 
-    first_member_membership = (
-        Membership.objects.get(
-            team=team,
-            user=first_member,
-        )
+    first_member_membership = Membership.objects.get(
+        team=team,
+        user=first_member,
     )
 
-    second_member_membership = (
-        Membership.objects.get(
-            team=team,
-            user=second_member,
-        )
+    second_member_membership = Membership.objects.get(
+        team=team,
+        user=second_member,
     )
 
-    assert (
-        owner_membership.role
-        == Membership.Role.ADMIN
-    )
+    assert owner_membership.role == Membership.Role.ADMIN
 
-    assert (
-        first_member_membership.role
-        == Membership.Role.OWNER
-    )
+    assert first_member_membership.role == Membership.Role.OWNER
 
-    assert (
-        second_member_membership.role
-        == Membership.Role.MEMBER
-    )
+    assert second_member_membership.role == Membership.Role.MEMBER
 
     assert (
         Membership.objects.filter(
@@ -2626,6 +2685,7 @@ def test_previous_owner_cannot_transfer_ownership_again():
         ).count()
         == 1
     )
+
 
 @pytest.mark.django_db
 def test_team_cannot_have_two_owners():
@@ -2658,6 +2718,7 @@ def test_team_cannot_have_two_owners():
             user=second_user,
             role=Membership.Role.OWNER,
         )
+
 
 @pytest.mark.django_db
 def test_team_member_can_retrieve_team_dashboard():
@@ -2707,6 +2768,7 @@ def test_team_member_can_retrieve_team_dashboard():
     assert response.data["team"]["id"] == team.pk
     assert response.data["team"]["name"] == "Equipo Dashboard"
 
+
 @pytest.mark.django_db
 def test_team_dashboard_returns_project_count():
     owner = User.objects.create_user(
@@ -2747,6 +2809,7 @@ def test_team_dashboard_returns_project_count():
 
     assert response.status_code == status.HTTP_200_OK
     assert response.data["projects"]["total"] == 3
+
 
 @pytest.mark.django_db
 def test_team_dashboard_returns_task_counts_by_status():
@@ -2814,6 +2877,7 @@ def test_team_dashboard_returns_task_counts_by_status():
     assert response.data["tasks"]["todo"] == 3
     assert response.data["tasks"]["in_progress"] == 2
     assert response.data["tasks"]["done"] == 1
+
 
 @pytest.mark.django_db
 def test_team_dashboard_returns_overdue_task_count():
@@ -2896,6 +2960,7 @@ def test_team_dashboard_returns_overdue_task_count():
     assert response.status_code == status.HTTP_200_OK
     assert response.data["tasks"]["overdue"] == 2
 
+
 @pytest.mark.django_db
 def test_outsider_cannot_retrieve_team_dashboard():
     owner = User.objects.create_user(
@@ -2934,6 +2999,7 @@ def test_outsider_cannot_retrieve_team_dashboard():
     )
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
+
 
 @pytest.mark.django_db
 def test_team_dashboard_returns_task_counts_by_priority():
@@ -3020,6 +3086,7 @@ def test_team_dashboard_returns_task_counts_by_priority():
     assert response.data["tasks"]["medium"] == 2
     assert response.data["tasks"]["high"] == 3
     assert response.data["tasks"]["total"] == 6
+
 
 @pytest.mark.django_db
 def test_team_dashboard_returns_current_user_task_metrics():
@@ -3108,6 +3175,7 @@ def test_team_dashboard_returns_current_user_task_metrics():
     assert response.data["my_tasks"]["todo"] == 1
     assert response.data["my_tasks"]["in_progress"] == 1
     assert response.data["my_tasks"]["done"] == 1
+
 
 @pytest.mark.django_db
 def test_team_dashboard_returns_current_user_overdue_task_count():
@@ -3200,6 +3268,7 @@ def test_team_dashboard_returns_current_user_overdue_task_count():
 
     assert response.data["my_tasks"]["overdue"] == 1
 
+
 @pytest.mark.django_db
 def test_team_dashboard_returns_task_breakdown_by_project():
     owner = User.objects.create_user(
@@ -3275,9 +3344,7 @@ def test_team_dashboard_returns_task_breakdown_by_project():
     assert response.data["projects"]["total"] == 2
 
     projects = {
-        project["name"]: project
-        for project
-        in response.data["projects"]["breakdown"]
+        project["name"]: project for project in response.data["projects"]["breakdown"]
     }
 
     assert projects["API"]["tasks"]["total"] == 2
@@ -3285,10 +3352,8 @@ def test_team_dashboard_returns_task_breakdown_by_project():
     assert projects["API"]["tasks"]["done"] == 1
 
     assert projects["Dashboard"]["tasks"]["total"] == 2
-    assert (
-        projects["Dashboard"]["tasks"]["in_progress"]
-        == 2
-    )
+    assert projects["Dashboard"]["tasks"]["in_progress"] == 2
+
 
 @pytest.mark.django_db
 def test_team_dashboard_returns_zero_personal_metrics_when_user_has_no_tasks():
@@ -3358,6 +3423,7 @@ def test_team_dashboard_returns_zero_personal_metrics_when_user_has_no_tasks():
         "due_soon": 0,
     }
 
+
 @pytest.mark.django_db
 def test_team_dashboard_returns_member_count():
     owner = User.objects.create_user(
@@ -3415,6 +3481,7 @@ def test_team_dashboard_returns_member_count():
 
     assert response.status_code == status.HTTP_200_OK
     assert response.data["team"]["members"] == 3
+
 
 @pytest.mark.django_db
 def test_team_dashboard_returns_unassigned_task_count():
@@ -3488,6 +3555,7 @@ def test_team_dashboard_returns_unassigned_task_count():
 
     assert response.data["tasks"]["total"] == 3
     assert response.data["tasks"]["unassigned"] == 2
+
 
 @pytest.mark.django_db
 def test_team_dashboard_returns_due_soon_task_count():
@@ -3577,6 +3645,7 @@ def test_team_dashboard_returns_due_soon_task_count():
 
     assert response.status_code == status.HTTP_200_OK
     assert response.data["tasks"]["due_soon"] == 2
+
 
 @pytest.mark.django_db
 def test_team_dashboard_returns_current_user_due_soon_task_count():
@@ -3670,6 +3739,7 @@ def test_team_dashboard_returns_current_user_due_soon_task_count():
     assert response.data["tasks"]["due_soon"] == 2
     assert response.data["my_tasks"]["due_soon"] == 1
 
+
 @pytest.mark.django_db
 def test_team_dashboard_returns_zero_metrics_when_team_has_no_work():
     owner = User.objects.create_user(
@@ -3732,37 +3802,27 @@ def test_team_dashboard_returns_zero_metrics_when_team_has_no_work():
         "due_soon": 0,
     }
 
+
 def test_openapi_schema_documents_team_dashboard_response():
     client = APIClient()
 
     response = client.get(
         reverse("schema"),
-        HTTP_ACCEPT=(
-            "application/vnd.oai.openapi+json"
-        ),
+        HTTP_ACCEPT=("application/vnd.oai.openapi+json"),
     )
 
     assert response.status_code == status.HTTP_200_OK
 
-    operation = response.data["paths"][
-        "/api/teams/{team_id}/dashboard/"
-    ]["get"]
+    operation = response.data["paths"]["/api/teams/{team_id}/dashboard/"]["get"]
 
-    success_response = operation[
-        "responses"
-    ]["200"]
+    success_response = operation["responses"]["200"]
 
     assert "content" in success_response
 
-    schema = success_response[
-        "content"
-    ][
-        "application/json"
-    ]["schema"]
+    schema = success_response["content"]["application/json"]["schema"]
 
-    assert schema["$ref"].endswith(
-        "/TeamDashboardResponse"
-    )
+    assert schema["$ref"].endswith("/TeamDashboardResponse")
+
 
 @pytest.mark.django_db
 def test_team_list_query_count_does_not_grow_per_team():
@@ -3827,6 +3887,7 @@ def test_team_list_query_count_does_not_grow_per_team():
     ten_teams_queries = len(queries)
 
     assert ten_teams_queries <= one_team_queries + 1
+
 
 @pytest.mark.django_db
 def test_team_dashboard_query_count_does_not_grow_with_workload():
@@ -3894,13 +3955,17 @@ def test_team_dashboard_query_count_does_not_grow_with_workload():
     )
 
     assert Project.objects.filter(team=team).count() == 10
-    assert Task.objects.filter(
-        project__team=team,
-    ).count() == 100
+    assert (
+        Task.objects.filter(
+            project__team=team,
+        ).count()
+        == 100
+    )
 
     populated_dashboard_queries = count_dashboard_queries()
 
     assert populated_dashboard_queries <= empty_dashboard_queries + 1
+
 
 @pytest.mark.django_db
 def test_adding_existing_team_member_returns_400():
@@ -3952,10 +4017,7 @@ def test_adding_existing_team_member_returns_400():
         format="json",
     )
 
-    assert (
-        response.status_code
-        == status.HTTP_400_BAD_REQUEST
-    )
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     assert "username" in response.data
 

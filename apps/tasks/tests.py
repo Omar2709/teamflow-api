@@ -1,7 +1,7 @@
 import pytest
-from django.urls import reverse
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
+from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -10,7 +10,6 @@ from apps.teams.models import Membership, Team
 from apps.users.models import User
 
 from .models import Task
-
 
 
 @pytest.mark.django_db
@@ -78,6 +77,7 @@ def test_team_owner_can_create_task():
     assert task.assigned_to is None
     assert task.status == Task.Status.TODO
     assert task.priority == Task.Priority.HIGH
+
 
 @pytest.mark.django_db
 def test_team_admin_can_create_task():
@@ -150,6 +150,7 @@ def test_team_admin_can_create_task():
     assert task.project == project
     assert task.created_by == admin
 
+
 @pytest.mark.django_db
 def test_team_member_cannot_create_task():
     owner = User.objects.create_user(
@@ -208,6 +209,7 @@ def test_team_member_cannot_create_task():
 
     assert Task.objects.count() == 0
 
+
 @pytest.mark.django_db
 def test_outsider_cannot_create_task():
     owner = User.objects.create_user(
@@ -260,6 +262,7 @@ def test_outsider_cannot_create_task():
 
     assert Task.objects.count() == 0
 
+
 @pytest.mark.django_db
 def test_unauthenticated_user_cannot_create_task():
     owner = User.objects.create_user(
@@ -304,6 +307,7 @@ def test_unauthenticated_user_cannot_create_task():
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     assert Task.objects.count() == 0
+
 
 @pytest.mark.django_db
 def test_team_member_can_list_project_tasks():
@@ -372,13 +376,11 @@ def test_team_member_can_list_project_tasks():
     assert response.data["count"] == 2
     assert len(response.data["results"]) == 2
 
-    returned_ids = {
-        task["id"]
-        for task in response.data["results"]
-    }
+    returned_ids = {task["id"] for task in response.data["results"]}
 
     assert first_task.pk in returned_ids
     assert second_task.pk in returned_ids
+
 
 @pytest.mark.django_db
 def test_task_list_only_returns_tasks_from_requested_project():
@@ -443,12 +445,10 @@ def test_task_list_only_returns_tasks_from_requested_project():
     assert response.data["results"][0]["id"] == first_task.pk
     assert response.data["results"][0]["project"] == first_project.pk
 
-    returned_ids = {
-        task["id"]
-        for task in response.data["results"]
-    }
+    returned_ids = {task["id"] for task in response.data["results"]}
 
     assert second_task.pk not in returned_ids
+
 
 @pytest.mark.django_db
 def test_task_creation_rejects_title_with_only_spaces():
@@ -496,6 +496,7 @@ def test_task_creation_rejects_title_with_only_spaces():
     assert "title" in response.data
 
     assert Task.objects.count() == 0
+
 
 @pytest.mark.django_db
 def test_task_creation_rejects_invalid_status_and_priority():
@@ -547,6 +548,7 @@ def test_task_creation_rejects_invalid_status_and_priority():
     assert "priority" in response.data
 
     assert Task.objects.count() == 0
+
 
 @pytest.mark.django_db
 def test_task_assigned_user_must_belong_to_team():
@@ -601,6 +603,7 @@ def test_task_assigned_user_must_belong_to_team():
     assert "assigned_to" in response.data
 
     assert Task.objects.count() == 0
+
 
 @pytest.mark.django_db
 def test_team_member_can_retrieve_task_detail():
@@ -673,6 +676,7 @@ def test_team_member_can_retrieve_task_detail():
     assert response.data["assigned_to"] == member.pk
     assert response.data["created_by"]["id"] == owner.pk
 
+
 @pytest.mark.django_db
 def test_outsider_cannot_retrieve_task_detail():
     owner = User.objects.create_user(
@@ -728,6 +732,7 @@ def test_outsider_cannot_retrieve_task_detail():
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert "detail" in response.data
 
+
 def test_unauthenticated_user_cannot_retrieve_task_detail():
     client = APIClient()
 
@@ -743,6 +748,7 @@ def test_unauthenticated_user_cannot_retrieve_task_detail():
     )
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
 
 @pytest.mark.django_db
 def test_team_owner_can_update_task():
@@ -833,6 +839,7 @@ def test_team_owner_can_update_task():
     assert task.assigned_to == member
     assert task.project == project
     assert task.created_by == owner
+
 
 @pytest.mark.django_db
 def test_team_admin_can_update_task():
@@ -933,6 +940,7 @@ def test_team_admin_can_update_task():
     assert task.project == project
     assert task.created_by == owner
 
+
 @pytest.mark.django_db
 def test_unassigned_team_member_cannot_update_task():
     owner = User.objects.create_user(
@@ -1002,6 +1010,7 @@ def test_unassigned_team_member_cannot_update_task():
 
     assert task.status == Task.Status.TODO
     assert task.priority == Task.Priority.MEDIUM
+
 
 @pytest.mark.django_db
 def test_assigned_team_member_can_update_task_status():
@@ -1079,6 +1088,7 @@ def test_assigned_team_member_can_update_task_status():
     assert task.status == Task.Status.IN_PROGRESS
     assert task.assigned_to == member
     assert task.priority == Task.Priority.HIGH
+
 
 @pytest.mark.django_db
 def test_assigned_team_member_cannot_update_restricted_task_fields():
@@ -1165,6 +1175,7 @@ def test_assigned_team_member_cannot_update_restricted_task_fields():
     assert task.assigned_to == member
     assert task.status == Task.Status.TODO
 
+
 @pytest.mark.django_db
 def test_task_cannot_be_assigned_to_user_outside_team():
     owner = User.objects.create_user(
@@ -1228,6 +1239,7 @@ def test_task_cannot_be_assigned_to_user_outside_team():
     task.refresh_from_db()
 
     assert task.assigned_to is None
+
 
 @pytest.mark.django_db
 def test_team_owner_and_admin_can_delete_tasks():
@@ -1320,6 +1332,7 @@ def test_team_owner_and_admin_can_delete_tasks():
         pk=admin_task.pk,
     ).exists()
 
+
 @pytest.mark.django_db
 def test_project_tasks_can_be_filtered_by_status():
     owner = User.objects.create_user(
@@ -1393,6 +1406,7 @@ def test_project_tasks_can_be_filtered_by_status():
     assert task_data["title"] == "Tarea pendiente"
     assert task_data["status"] == Task.Status.TODO
 
+
 @pytest.mark.django_db
 def test_project_tasks_can_be_filtered_by_priority():
     owner = User.objects.create_user(
@@ -1464,6 +1478,7 @@ def test_project_tasks_can_be_filtered_by_priority():
 
     assert task_data["id"] == high_priority_task.pk
     assert task_data["priority"] == Task.Priority.HIGH
+
 
 @pytest.mark.django_db
 def test_project_tasks_can_be_filtered_by_assigned_user():
@@ -1560,6 +1575,7 @@ def test_project_tasks_can_be_filtered_by_assigned_user():
     assert task_data["id"] == first_member_task.pk
     assert task_data["assigned_to"] == first_member.pk
 
+
 @pytest.mark.django_db
 def test_project_tasks_can_be_filtered_by_status_and_priority():
     owner = User.objects.create_user(
@@ -1637,6 +1653,7 @@ def test_project_tasks_can_be_filtered_by_status_and_priority():
     assert task_data["status"] == Task.Status.TODO
     assert task_data["priority"] == Task.Priority.HIGH
 
+
 @pytest.mark.django_db
 def test_project_task_filter_rejects_invalid_status():
     owner = User.objects.create_user(
@@ -1687,6 +1704,7 @@ def test_project_task_filter_rejects_invalid_status():
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert "status" in response.data
+
 
 @pytest.mark.django_db
 def test_project_tasks_can_be_searched_by_title():
@@ -1747,6 +1765,7 @@ def test_project_tasks_can_be_searched_by_title():
     assert len(response.data["results"]) == 1
 
     assert response.data["results"][0]["id"] == matching_task.pk
+
 
 @pytest.mark.django_db
 def test_project_tasks_can_be_searched_by_description():
@@ -1810,6 +1829,7 @@ def test_project_tasks_can_be_searched_by_description():
 
     assert response.data["results"][0]["id"] == matching_task.pk
 
+
 @pytest.mark.django_db
 def test_project_task_search_is_partial_and_case_insensitive():
     owner = User.objects.create_user(
@@ -1869,6 +1889,7 @@ def test_project_task_search_is_partial_and_case_insensitive():
     assert len(response.data["results"]) == 1
 
     assert response.data["results"][0]["id"] == matching_task.pk
+
 
 @pytest.mark.django_db
 def test_project_tasks_can_be_ordered_by_due_date():
@@ -1935,16 +1956,14 @@ def test_project_tasks_can_be_ordered_by_due_date():
     assert response.status_code == status.HTTP_200_OK
     assert response.data["count"] == 3
 
-    returned_ids = [
-        task["id"]
-        for task in response.data["results"]
-    ]
+    returned_ids = [task["id"] for task in response.data["results"]]
 
     assert returned_ids == [
         first_task.pk,
         middle_task.pk,
         last_task.pk,
     ]
+
 
 @pytest.mark.django_db
 def test_project_tasks_can_be_ordered_by_created_at_descending():
@@ -2008,16 +2027,14 @@ def test_project_tasks_can_be_ordered_by_created_at_descending():
     assert response.status_code == status.HTTP_200_OK
     assert response.data["count"] == 3
 
-    returned_ids = [
-        task["id"]
-        for task in response.data["results"]
-    ]
+    returned_ids = [task["id"] for task in response.data["results"]]
 
     assert returned_ids == [
         third_task.pk,
         second_task.pk,
         first_task.pk,
     ]
+
 
 @pytest.mark.django_db
 def test_project_task_list_is_paginated():
@@ -2070,6 +2087,7 @@ def test_project_task_list_is_paginated():
     assert len(response.data["results"]) == 10
     assert response.data["next"] is not None
     assert response.data["previous"] is None
+
 
 @pytest.mark.django_db
 def test_project_task_list_can_return_second_page():
@@ -2127,6 +2145,7 @@ def test_project_task_list_can_return_second_page():
     assert response.data["next"] is None
     assert response.data["previous"] is not None
 
+
 @pytest.mark.django_db
 def test_project_task_list_accepts_custom_page_size():
     owner = User.objects.create_user(
@@ -2181,6 +2200,7 @@ def test_project_task_list_accepts_custom_page_size():
     assert len(response.data["results"]) == 3
     assert response.data["next"] is not None
 
+
 @pytest.mark.django_db
 def test_project_task_page_size_is_limited_to_maximum():
     owner = User.objects.create_user(
@@ -2234,6 +2254,7 @@ def test_project_task_page_size_is_limited_to_maximum():
     assert response.data["count"] == 55
     assert len(response.data["results"]) == 50
     assert response.data["next"] is not None
+
 
 @pytest.mark.django_db
 def test_task_list_query_count_does_not_grow_per_task():
@@ -2305,6 +2326,7 @@ def test_task_list_query_count_does_not_grow_per_task():
     ten_tasks_queries = count_task_list_queries()
 
     assert ten_tasks_queries <= one_task_queries + 1
+
 
 @pytest.mark.django_db
 def test_previous_assignee_cannot_update_task_after_reassignment():
@@ -2382,10 +2404,7 @@ def test_previous_assignee_cannot_update_task_after_reassignment():
         format="json",
     )
 
-    assert (
-        reassignment_response.status_code
-        == status.HTTP_200_OK
-    )
+    assert reassignment_response.status_code == status.HTTP_200_OK
 
     # El antiguo asignado ya no debe poder modificar la tarea.
     previous_member_client = APIClient()
@@ -2409,22 +2428,13 @@ def test_previous_assignee_cannot_update_task_after_reassignment():
         format="json",
     )
 
-    assert (
-        response.status_code
-        == status.HTTP_403_FORBIDDEN
-    )
+    assert response.status_code == status.HTTP_403_FORBIDDEN
 
     task.refresh_from_db()
 
-    assert (
-        task.assigned_to
-        == new_assignee
-    )
+    assert task.assigned_to == new_assignee
 
-    assert (
-        task.status
-        == Task.Status.TODO
-    )
+    assert task.status == Task.Status.TODO
 
     # El nuevo asignado sí debe poder modificar el estado.
     new_member_client = APIClient()
@@ -2448,19 +2458,10 @@ def test_previous_assignee_cannot_update_task_after_reassignment():
         format="json",
     )
 
-    assert (
-        response.status_code
-        == status.HTTP_200_OK
-    )
+    assert response.status_code == status.HTTP_200_OK
 
     task.refresh_from_db()
 
-    assert (
-        task.assigned_to
-        == new_assignee
-    )
+    assert task.assigned_to == new_assignee
 
-    assert (
-        task.status
-        == Task.Status.IN_PROGRESS
-    )
+    assert task.status == Task.Status.IN_PROGRESS

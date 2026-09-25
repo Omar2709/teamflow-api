@@ -28,7 +28,10 @@ htmlcov/
 .ruff_cache/
 
 # Editores
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+
 .idea/
 
 # Sistema operativo

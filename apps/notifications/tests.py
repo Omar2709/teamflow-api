@@ -1,10 +1,11 @@
-import pytest
+from datetime import date, timedelta
 from typing import Any, Protocol, cast
 
+import pytest
 from celery.exceptions import Retry
 from celery.result import EagerResult
 from celery.schedules import crontab
-from django.urls import reverse
+from django.conf import settings
 from django.db import (
     IntegrityError,
     InterfaceError,
@@ -12,25 +13,22 @@ from django.db import (
     connection,
 )
 from django.test.utils import CaptureQueriesContext
+from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
-from datetime import date, timedelta
 
-from django.conf import settings
-from django.utils import timezone
-
-from config.celery import app as celery_app
-
-from .tasks import notify_due_soon_tasks
-
+from apps.notifications.services import (
+    create_due_soon_notifications,
+)
 from apps.projects.models import Project
 from apps.tasks.models import Task
 from apps.teams.models import Membership, Team
 from apps.users.models import User
-from apps.notifications.services import (
-    create_due_soon_notifications,
-)
+from config.celery import app as celery_app
+
 from .models import Notification
+from .tasks import notify_due_soon_tasks
 
 
 class CeleryApplicableTask(Protocol):
@@ -39,8 +37,7 @@ class CeleryApplicableTask(Protocol):
         args: tuple[Any, ...] | None = None,
         kwargs: dict[str, Any] | None = None,
         **options: Any,
-    ) -> EagerResult:
-        ...
+    ) -> EagerResult: ...
 
 
 class SupportsCeleryApply(Protocol):
@@ -49,8 +46,8 @@ class SupportsCeleryApply(Protocol):
         args: tuple[Any, ...] | None = None,
         kwargs: dict[str, Any] | None = None,
         **options: Any,
-    ) -> Any:
-        ...
+    ) -> Any: ...
+
 
 @pytest.mark.django_db
 def test_user_can_list_only_own_notifications():
@@ -91,10 +88,8 @@ def test_user_can_list_only_own_notifications():
     assert len(response.data) == 1
 
     assert response.data[0]["id"] == own_notification.pk
-    assert (
-        response.data[0]["message"]
-        == "Tu propia notificación."
-    )
+    assert response.data[0]["message"] == "Tu propia notificación."
+
 
 def test_unauthenticated_user_cannot_list_notifications():
     client = APIClient()
@@ -106,6 +101,7 @@ def test_unauthenticated_user_cannot_list_notifications():
     )
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
 
 @pytest.mark.django_db
 def test_user_can_mark_own_notification_as_read():
@@ -144,6 +140,7 @@ def test_user_can_mark_own_notification_as_read():
 
     assert notification.is_read is True
     assert notification.read_at is not None
+
 
 @pytest.mark.django_db
 def test_user_cannot_mark_other_users_notification_as_read():
@@ -185,6 +182,7 @@ def test_user_cannot_mark_other_users_notification_as_read():
 
     assert notification.is_read is False
     assert notification.read_at is None
+
 
 @pytest.mark.django_db
 def test_mark_notification_as_read_is_idempotent():
@@ -234,6 +232,7 @@ def test_mark_notification_as_read_is_idempotent():
 
     assert notification.is_read is True
     assert notification.read_at == first_read_at
+
 
 @pytest.mark.django_db
 def test_assigning_task_on_creation_creates_notification():
@@ -303,6 +302,7 @@ def test_assigning_task_on_creation_creates_notification():
     assert notification.read_at is None
     assert "Implementar JWT" in notification.message
 
+
 @pytest.mark.django_db
 def test_creating_unassigned_task_does_not_create_notification():
     owner = User.objects.create_user(
@@ -347,6 +347,7 @@ def test_creating_unassigned_task_does_not_create_notification():
 
     assert response.status_code == status.HTTP_201_CREATED
     assert Notification.objects.count() == 0
+
 
 @pytest.mark.django_db
 def test_reassigning_task_creates_notification_for_new_assignee():
@@ -417,15 +418,22 @@ def test_reassigning_task_creates_notification_for_new_assignee():
 
     assert response.status_code == status.HTTP_200_OK
 
-    assert Notification.objects.filter(
-        user=second_member,
-        task=task,
-        type=Notification.Type.TASK_ASSIGNED,
-    ).count() == 1
+    assert (
+        Notification.objects.filter(
+            user=second_member,
+            task=task,
+            type=Notification.Type.TASK_ASSIGNED,
+        ).count()
+        == 1
+    )
 
-    assert Notification.objects.filter(
-        user=first_member,
-    ).count() == 0
+    assert (
+        Notification.objects.filter(
+            user=first_member,
+        ).count()
+        == 0
+    )
+
 
 @pytest.mark.django_db
 def test_updating_task_without_changing_assignee_does_not_duplicate_notification():
@@ -499,11 +507,15 @@ def test_updating_task_without_changing_assignee_does_not_duplicate_notification
 
     assert response.status_code == status.HTTP_200_OK
 
-    assert Notification.objects.filter(
-        user=member,
-        task=task,
-        type=Notification.Type.TASK_ASSIGNED,
-    ).count() == 1
+    assert (
+        Notification.objects.filter(
+            user=member,
+            task=task,
+            type=Notification.Type.TASK_ASSIGNED,
+        ).count()
+        == 1
+    )
+
 
 @pytest.mark.django_db
 def test_assigning_task_to_self_does_not_create_notification():
@@ -551,6 +563,7 @@ def test_assigning_task_to_self_does_not_create_notification():
     assert response.status_code == status.HTTP_201_CREATED
 
     assert Notification.objects.count() == 0
+
 
 @pytest.mark.django_db
 def test_comment_creates_notifications_for_task_creator_and_assignee():
@@ -605,11 +618,7 @@ def test_comment_creates_notifications_for_task_creator_and_assignee():
     client.force_authenticate(user=commenter)
 
     response = client.post(
-        (
-            f"/api/teams/{team.pk}/"
-            f"projects/{project.pk}/"
-            f"tasks/{task.pk}/comments/"
-        ),
+        (f"/api/teams/{team.pk}/projects/{project.pk}/tasks/{task.pk}/comments/"),
         {
             "content": "Ya revisé esta tarea.",
         },
@@ -638,6 +647,7 @@ def test_comment_creates_notifications_for_task_creator_and_assignee():
     }
 
     assert commenter.pk not in recipient_ids
+
 
 @pytest.mark.django_db
 def test_comment_author_does_not_receive_own_notification():
@@ -687,11 +697,7 @@ def test_comment_author_does_not_receive_own_notification():
     client.force_authenticate(user=assignee)
 
     response = client.post(
-        (
-            f"/api/teams/{team.pk}/"
-            f"projects/{project.pk}/"
-            f"tasks/{task.pk}/comments/"
-        ),
+        (f"/api/teams/{team.pk}/projects/{project.pk}/tasks/{task.pk}/comments/"),
         {
             "content": "Estoy trabajando en esto.",
         },
@@ -700,17 +706,24 @@ def test_comment_author_does_not_receive_own_notification():
 
     assert response.status_code == status.HTTP_201_CREATED
 
-    assert Notification.objects.filter(
-        user=owner,
-        type=Notification.Type.COMMENT_CREATED,
-        task=task,
-    ).count() == 1
+    assert (
+        Notification.objects.filter(
+            user=owner,
+            type=Notification.Type.COMMENT_CREATED,
+            task=task,
+        ).count()
+        == 1
+    )
 
-    assert Notification.objects.filter(
-        user=assignee,
-        type=Notification.Type.COMMENT_CREATED,
-        task=task,
-    ).count() == 0
+    assert (
+        Notification.objects.filter(
+            user=assignee,
+            type=Notification.Type.COMMENT_CREATED,
+            task=task,
+        ).count()
+        == 0
+    )
+
 
 @pytest.mark.django_db
 def test_comment_does_not_duplicate_notification_when_creator_is_assignee():
@@ -760,11 +773,7 @@ def test_comment_does_not_duplicate_notification_when_creator_is_assignee():
     client.force_authenticate(user=commenter)
 
     response = client.post(
-        (
-            f"/api/teams/{team.pk}/"
-            f"projects/{project.pk}/"
-            f"tasks/{task.pk}/comments/"
-        ),
+        (f"/api/teams/{team.pk}/projects/{project.pk}/tasks/{task.pk}/comments/"),
         {
             "content": "Comentario sin duplicados.",
         },
@@ -773,11 +782,15 @@ def test_comment_does_not_duplicate_notification_when_creator_is_assignee():
 
     assert response.status_code == status.HTTP_201_CREATED
 
-    assert Notification.objects.filter(
-        user=owner,
-        task=task,
-        type=Notification.Type.COMMENT_CREATED,
-    ).count() == 1
+    assert (
+        Notification.objects.filter(
+            user=owner,
+            task=task,
+            type=Notification.Type.COMMENT_CREATED,
+        ).count()
+        == 1
+    )
+
 
 @pytest.mark.django_db
 def test_comment_on_unassigned_task_notifies_task_creator():
@@ -826,11 +839,7 @@ def test_comment_on_unassigned_task_notifies_task_creator():
     client.force_authenticate(user=commenter)
 
     response = client.post(
-        (
-            f"/api/teams/{team.pk}/"
-            f"projects/{project.pk}/"
-            f"tasks/{task.pk}/comments/"
-        ),
+        (f"/api/teams/{team.pk}/projects/{project.pk}/tasks/{task.pk}/comments/"),
         {
             "content": "Hay que revisar esta tarea.",
         },
@@ -846,6 +855,7 @@ def test_comment_on_unassigned_task_notifies_task_creator():
 
     assert notification.user is not None
     assert notification.user.pk == owner.pk
+
 
 @pytest.mark.django_db
 def test_comment_creates_no_notification_when_actor_is_only_recipient():
@@ -883,11 +893,7 @@ def test_comment_creates_no_notification_when_actor_is_only_recipient():
     client.force_authenticate(user=owner)
 
     response = client.post(
-        (
-            f"/api/teams/{team.pk}/"
-            f"projects/{project.pk}/"
-            f"tasks/{task.pk}/comments/"
-        ),
+        (f"/api/teams/{team.pk}/projects/{project.pk}/tasks/{task.pk}/comments/"),
         {
             "content": "Mi propio comentario.",
         },
@@ -896,10 +902,14 @@ def test_comment_creates_no_notification_when_actor_is_only_recipient():
 
     assert response.status_code == status.HTTP_201_CREATED
 
-    assert Notification.objects.filter(
-        type=Notification.Type.COMMENT_CREATED,
-        task=task,
-    ).count() == 0
+    assert (
+        Notification.objects.filter(
+            type=Notification.Type.COMMENT_CREATED,
+            task=task,
+        ).count()
+        == 0
+    )
+
 
 @pytest.mark.django_db
 def test_due_soon_service_creates_notification():
@@ -948,10 +958,8 @@ def test_due_soon_service_creates_notification():
         created_by=owner,
     )
 
-    notifications = (
-        create_due_soon_notifications(
-            today=today,
-        )
+    notifications = create_due_soon_notifications(
+        today=today,
     )
 
     assert len(notifications) == 1
@@ -965,6 +973,7 @@ def test_due_soon_service_creates_notification():
     assert notification.is_read is False
     assert notification.read_at is None
     assert "Preparar deployment" in notification.message
+
 
 @pytest.mark.django_db
 def test_due_soon_service_respects_due_date_rules():
@@ -1073,11 +1082,9 @@ def test_due_soon_service_respects_due_date_rules():
     )
 
     task_ids = set(
-        Notification.objects
-        .filter(
+        Notification.objects.filter(
             type=Notification.Type.TASK_DUE_SOON,
-        )
-        .values_list(
+        ).values_list(
             "task_id",
             flat=True,
         )
@@ -1087,6 +1094,7 @@ def test_due_soon_service_respects_due_date_rules():
         tomorrow.pk,
         seventh_day.pk,
     }
+
 
 @pytest.mark.django_db
 def test_due_soon_service_does_not_duplicate_notifications():
@@ -1146,11 +1154,15 @@ def test_due_soon_service_does_not_duplicate_notifications():
     assert len(first_run) == 1
     assert len(second_run) == 0
 
-    assert Notification.objects.filter(
-        user=member,
-        task=task,
-        type=Notification.Type.TASK_DUE_SOON,
-    ).count() == 1
+    assert (
+        Notification.objects.filter(
+            user=member,
+            task=task,
+            type=Notification.Type.TASK_DUE_SOON,
+        ).count()
+        == 1
+    )
+
 
 @pytest.mark.django_db
 def test_due_soon_service_notifies_each_task_assignee():
@@ -1216,17 +1228,24 @@ def test_due_soon_service_notifies_each_task_assignee():
         today=today,
     )
 
-    assert Notification.objects.filter(
-        user=first_member,
-        task=first_task,
-        type=Notification.Type.TASK_DUE_SOON,
-    ).count() == 1
+    assert (
+        Notification.objects.filter(
+            user=first_member,
+            task=first_task,
+            type=Notification.Type.TASK_DUE_SOON,
+        ).count()
+        == 1
+    )
 
-    assert Notification.objects.filter(
-        user=second_member,
-        task=second_task,
-        type=Notification.Type.TASK_DUE_SOON,
-    ).count() == 1
+    assert (
+        Notification.objects.filter(
+            user=second_member,
+            task=second_task,
+            type=Notification.Type.TASK_DUE_SOON,
+        ).count()
+        == 1
+    )
+
 
 @pytest.mark.django_db
 def test_due_soon_service_notifies_new_assignee_after_reassignment():
@@ -1285,43 +1304,40 @@ def test_due_soon_service_notifies_new_assignee_after_reassignment():
     )
 
     task.assigned_to = second_member
-    task.save(
-        update_fields=(
-            "assigned_to",
-        )
-    )
+    task.save(update_fields=("assigned_to",))
 
     create_due_soon_notifications(
         today=today,
     )
 
-    assert Notification.objects.filter(
-        user=first_member,
-        task=task,
-        type=Notification.Type.TASK_DUE_SOON,
-    ).count() == 1
+    assert (
+        Notification.objects.filter(
+            user=first_member,
+            task=task,
+            type=Notification.Type.TASK_DUE_SOON,
+        ).count()
+        == 1
+    )
 
-    assert Notification.objects.filter(
-        user=second_member,
-        task=task,
-        type=Notification.Type.TASK_DUE_SOON,
-    ).count() == 1
+    assert (
+        Notification.objects.filter(
+            user=second_member,
+            task=task,
+            type=Notification.Type.TASK_DUE_SOON,
+        ).count()
+        == 1
+    )
+
 
 def test_due_soon_celery_task_is_registered():
-    assert (
-        "notifications.notify_due_soon_tasks"
-        in celery_app.tasks
-    )
+    assert "notifications.notify_due_soon_tasks" in celery_app.tasks
+
 
 def test_celery_uses_configured_broker():
-    assert (
-        celery_app.conf.broker_url
-        == settings.CELERY_BROKER_URL
-    )
+    assert celery_app.conf.broker_url == settings.CELERY_BROKER_URL
 
-    assert celery_app.conf.broker_url.startswith(
-        "redis://"
-    )
+    assert celery_app.conf.broker_url.startswith("redis://")
+
 
 @pytest.mark.django_db
 def test_due_soon_celery_task_creates_notification():
@@ -1364,10 +1380,7 @@ def test_due_soon_celery_task_creates_notification():
         project=project,
         title="Tarea ejecutada por Celery",
         assigned_to=member,
-        due_date=(
-            timezone.localdate()
-            + timedelta(days=2)
-        ),
+        due_date=(timezone.localdate() + timedelta(days=2)),
         created_by=owner,
     )
 
@@ -1375,11 +1388,15 @@ def test_due_soon_celery_task_creates_notification():
 
     assert result == 1
 
-    assert Notification.objects.filter(
-        user=member,
-        task=task,
-        type=Notification.Type.TASK_DUE_SOON,
-    ).count() == 1
+    assert (
+        Notification.objects.filter(
+            user=member,
+            task=task,
+            type=Notification.Type.TASK_DUE_SOON,
+        ).count()
+        == 1
+    )
+
 
 @pytest.mark.django_db
 def test_due_soon_celery_task_returns_zero_when_no_tasks_match():
@@ -1422,10 +1439,7 @@ def test_due_soon_celery_task_returns_zero_when_no_tasks_match():
         project=project,
         title="Tarea muy lejana",
         assigned_to=member,
-        due_date=(
-            timezone.localdate()
-            + timedelta(days=20)
-        ),
+        due_date=(timezone.localdate() + timedelta(days=20)),
         created_by=owner,
     )
 
@@ -1433,9 +1447,13 @@ def test_due_soon_celery_task_returns_zero_when_no_tasks_match():
 
     assert result == 0
 
-    assert Notification.objects.filter(
-        type=Notification.Type.TASK_DUE_SOON,
-    ).count() == 0
+    assert (
+        Notification.objects.filter(
+            type=Notification.Type.TASK_DUE_SOON,
+        ).count()
+        == 0
+    )
+
 
 @pytest.mark.django_db
 def test_due_soon_celery_task_does_not_duplicate_notifications():
@@ -1478,10 +1496,7 @@ def test_due_soon_celery_task_does_not_duplicate_notifications():
         project=project,
         title="Tarea Celery sin duplicados",
         assigned_to=member,
-        due_date=(
-            timezone.localdate()
-            + timedelta(days=3)
-        ),
+        due_date=(timezone.localdate() + timedelta(days=3)),
         created_by=owner,
     )
 
@@ -1491,37 +1506,34 @@ def test_due_soon_celery_task_does_not_duplicate_notifications():
     assert first_result == 1
     assert second_result == 0
 
-    assert Notification.objects.filter(
-        user=member,
-        task=task,
-        type=Notification.Type.TASK_DUE_SOON,
-    ).count() == 1
+    assert (
+        Notification.objects.filter(
+            user=member,
+            task=task,
+            type=Notification.Type.TASK_DUE_SOON,
+        ).count()
+        == 1
+    )
+
 
 def test_due_soon_task_has_periodic_schedule():
-    assert (
-        "notify-due-soon-tasks-daily"
-        in settings.CELERY_BEAT_SCHEDULE
-    )
+    assert "notify-due-soon-tasks-daily" in settings.CELERY_BEAT_SCHEDULE
+
 
 def test_due_soon_periodic_schedule_uses_correct_task():
-    schedule = settings.CELERY_BEAT_SCHEDULE[
-        "notify-due-soon-tasks-daily"
-    ]
+    schedule = settings.CELERY_BEAT_SCHEDULE["notify-due-soon-tasks-daily"]
 
-    assert (
-        schedule["task"]
-        == "notifications.notify_due_soon_tasks"
-    )
+    assert schedule["task"] == "notifications.notify_due_soon_tasks"
+
 
 def test_due_soon_periodic_schedule_uses_crontab():
-    schedule = settings.CELERY_BEAT_SCHEDULE[
-        "notify-due-soon-tasks-daily"
-    ]
+    schedule = settings.CELERY_BEAT_SCHEDULE["notify-due-soon-tasks-daily"]
 
     assert isinstance(
         schedule["schedule"],
         crontab,
     )
+
 
 @pytest.mark.django_db
 def test_database_rejects_duplicate_due_soon_notification():
@@ -1564,10 +1576,7 @@ def test_database_rejects_duplicate_due_soon_notification():
         project=project,
         title="Tarea constraint",
         assigned_to=member,
-        due_date=(
-            timezone.localdate()
-            + timedelta(days=2)
-        ),
+        due_date=(timezone.localdate() + timedelta(days=2)),
         created_by=owner,
     )
 
@@ -1585,6 +1594,7 @@ def test_database_rejects_duplicate_due_soon_notification():
             type=Notification.Type.TASK_DUE_SOON,
             message="Duplicada.",
         )
+
 
 @pytest.mark.django_db
 def test_database_allows_repeated_assignment_notifications():
@@ -1606,23 +1616,23 @@ def test_database_allows_repeated_assignment_notifications():
         message="Asignación 2.",
     )
 
-    assert Notification.objects.filter(
-        user=user,
-        type=Notification.Type.TASK_ASSIGNED,
-    ).count() == 2
+    assert (
+        Notification.objects.filter(
+            user=user,
+            type=Notification.Type.TASK_ASSIGNED,
+        ).count()
+        == 2
+    )
+
 
 def test_celery_loads_due_soon_beat_schedule():
-    assert (
-        "notify-due-soon-tasks-daily"
-        in celery_app.conf.beat_schedule
-    )
+    assert "notify-due-soon-tasks-daily" in celery_app.conf.beat_schedule
 
     assert (
-        celery_app.conf.beat_schedule[
-            "notify-due-soon-tasks-daily"
-        ]["task"]
+        celery_app.conf.beat_schedule["notify-due-soon-tasks-daily"]["task"]
         == "notifications.notify_due_soon_tasks"
     )
+
 
 @pytest.mark.django_db
 def test_notification_list_query_count_does_not_grow_per_notification():
@@ -1680,44 +1690,27 @@ def test_notification_list_query_count_does_not_grow_per_notification():
 
     assert ten_notifications_queries <= one_notification_queries + 1
 
+
 def test_due_soon_task_has_retry_policy():
-    assert set(
-        notify_due_soon_tasks.autoretry_for
-    ) == {
+    assert set(notify_due_soon_tasks.autoretry_for) == {
         OperationalError,
         InterfaceError,
     }
 
-    assert (
-        notify_due_soon_tasks.max_retries
-        == 5
-    )
+    assert notify_due_soon_tasks.max_retries == 5
 
-    assert (
-        notify_due_soon_tasks.retry_backoff
-        == 5
-    )
+    assert notify_due_soon_tasks.retry_backoff == 5
 
-    assert (
-        notify_due_soon_tasks.retry_backoff_max
-        == 300
-    )
+    assert notify_due_soon_tasks.retry_backoff_max == 300
 
-    assert (
-        notify_due_soon_tasks.retry_jitter
-        is True
-    )
+    assert notify_due_soon_tasks.retry_jitter is True
+
 
 def test_due_soon_task_has_time_limits():
-    assert (
-        notify_due_soon_tasks.soft_time_limit
-        == 120
-    )
+    assert notify_due_soon_tasks.soft_time_limit == 120
 
-    assert (
-        notify_due_soon_tasks.time_limit
-        == 150
-    )
+    assert notify_due_soon_tasks.time_limit == 150
+
 
 @pytest.mark.django_db
 def test_due_soon_task_logs_created_notification_count(
@@ -1731,25 +1724,20 @@ def test_due_soon_task_logs_created_notification_count(
 
     assert result == 0
 
-    assert (
-        "Due-soon notification task completed."
-        in caplog.text
-    )
+    assert "Due-soon notification task completed." in caplog.text
 
     assert "created=0" in caplog.text
+
 
 @pytest.mark.django_db
 def test_due_soon_task_retries_transient_database_error(
     monkeypatch,
 ):
     def raise_operational_error():
-        raise OperationalError(
-            "Database temporarily unavailable"
-        )
+        raise OperationalError("Database temporarily unavailable")
 
     monkeypatch.setattr(
-        "apps.notifications.tasks."
-        "create_due_soon_notifications",
+        "apps.notifications.tasks.create_due_soon_notifications",
         raise_operational_error,
     )
 

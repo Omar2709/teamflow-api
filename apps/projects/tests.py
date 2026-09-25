@@ -1,16 +1,14 @@
 import pytest
-from apps.users.models import User
-from django.urls import reverse
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
+from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from apps.teams.models import Membership, Team
+from apps.users.models import User
 
 from .models import Project
-
-
 
 
 @pytest.mark.django_db
@@ -60,6 +58,7 @@ def test_team_owner_can_create_project():
 
     assert project.team == team
     assert project.created_by == owner
+
 
 @pytest.mark.django_db
 def test_team_admin_can_create_project():
@@ -117,6 +116,7 @@ def test_team_admin_can_create_project():
         name="Proyecto del admin",
     ).exists()
 
+
 @pytest.mark.django_db
 def test_team_member_cannot_create_project():
     owner = User.objects.create_user(
@@ -166,6 +166,7 @@ def test_team_member_cannot_create_project():
 
     assert Project.objects.count() == 0
 
+
 @pytest.mark.django_db
 def test_outsider_cannot_create_project():
     owner = User.objects.create_user(
@@ -209,6 +210,7 @@ def test_outsider_cannot_create_project():
 
     assert Project.objects.count() == 0
 
+
 def test_unauthenticated_user_cannot_create_project():
     client = APIClient()
 
@@ -224,6 +226,7 @@ def test_unauthenticated_user_cannot_create_project():
     )
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
 
 @pytest.mark.django_db
 def test_team_member_can_list_projects():
@@ -281,13 +284,11 @@ def test_team_member_can_list_projects():
     assert response.status_code == status.HTTP_200_OK
     assert len(response.data) == 2
 
-    returned_ids = {
-        project["id"]
-        for project in response.data
-    }
+    returned_ids = {project["id"] for project in response.data}
 
     assert first_project.pk in returned_ids
     assert second_project.pk in returned_ids
+
 
 @pytest.mark.django_db
 def test_project_list_only_returns_projects_from_requested_team():
@@ -346,12 +347,10 @@ def test_project_list_only_returns_projects_from_requested_team():
 
     assert response.data[0]["id"] == first_project.pk
 
-    returned_ids = {
-        project["id"]
-        for project in response.data
-    }
+    returned_ids = {project["id"] for project in response.data}
 
     assert second_project.pk not in returned_ids
+
 
 @pytest.mark.django_db
 def test_project_creation_rejects_name_with_only_spaces():
@@ -391,6 +390,7 @@ def test_project_creation_rejects_name_with_only_spaces():
 
     assert Project.objects.count() == 0
 
+
 @pytest.mark.django_db
 def test_project_creation_rejects_name_longer_than_120_characters():
     owner = User.objects.create_user(
@@ -428,6 +428,7 @@ def test_project_creation_rejects_name_longer_than_120_characters():
     assert "name" in response.data
 
     assert Project.objects.count() == 0
+
 
 @pytest.mark.django_db
 def test_cannot_create_duplicate_project_name_in_same_team():
@@ -471,9 +472,13 @@ def test_cannot_create_duplicate_project_name_in_same_team():
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert "name" in response.data
 
-    assert Project.objects.filter(
-        team=team,
-    ).count() == 1
+    assert (
+        Project.objects.filter(
+            team=team,
+        ).count()
+        == 1
+    )
+
 
 @pytest.mark.django_db
 def test_team_member_can_retrieve_project_detail():
@@ -534,6 +539,7 @@ def test_team_member_can_retrieve_project_detail():
     assert response.data["description"] == project.description
     assert response.data["created_by"]["id"] == owner.pk
 
+
 @pytest.mark.django_db
 def test_outsider_cannot_retrieve_project_detail():
     owner = User.objects.create_user(
@@ -582,6 +588,7 @@ def test_outsider_cannot_retrieve_project_detail():
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert "detail" in response.data
 
+
 def test_unauthenticated_user_cannot_retrieve_project_detail():
     client = APIClient()
 
@@ -596,6 +603,7 @@ def test_unauthenticated_user_cannot_retrieve_project_detail():
     )
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
 
 @pytest.mark.django_db
 def test_team_owner_can_update_project():
@@ -654,6 +662,7 @@ def test_team_owner_can_update_project():
     assert project.description == "Descripción actualizada."
     assert project.team == team
     assert project.created_by == owner
+
 
 @pytest.mark.django_db
 def test_team_admin_can_update_project():
@@ -724,6 +733,7 @@ def test_team_admin_can_update_project():
     assert project.description == "Modificado por administrador."
     assert project.created_by == owner
 
+
 @pytest.mark.django_db
 def test_team_member_cannot_update_project():
     owner = User.objects.create_user(
@@ -788,6 +798,7 @@ def test_team_member_cannot_update_project():
     assert project.description == "Descripción original."
     assert project.created_by == owner
 
+
 @pytest.mark.django_db
 def test_project_update_rejects_name_with_only_spaces():
     owner = User.objects.create_user(
@@ -838,6 +849,7 @@ def test_project_update_rejects_name_with_only_spaces():
 
     assert project.name == "Nombre válido"
     assert project.description == "Descripción original."
+
 
 @pytest.mark.django_db
 def test_project_update_ignores_server_controlled_fields():
@@ -917,6 +929,7 @@ def test_project_update_ignores_server_controlled_fields():
     assert project.created_by == owner
     assert project.created_by != other_user
 
+
 @pytest.mark.django_db
 def test_team_owner_can_delete_project():
     owner = User.objects.create_user(
@@ -961,6 +974,7 @@ def test_team_owner_can_delete_project():
     assert not Project.objects.filter(
         id=project.pk,
     ).exists()
+
 
 @pytest.mark.django_db
 def test_team_admin_can_delete_project():
@@ -1017,6 +1031,7 @@ def test_team_admin_can_delete_project():
     assert not Project.objects.filter(
         id=project.pk,
     ).exists()
+
 
 @pytest.mark.django_db
 def test_team_member_cannot_delete_project():
@@ -1075,6 +1090,7 @@ def test_team_member_cannot_delete_project():
         id=project.pk,
     ).exists()
 
+
 @pytest.mark.django_db
 def test_outsider_cannot_delete_project():
     owner = User.objects.create_user(
@@ -1124,6 +1140,7 @@ def test_outsider_cannot_delete_project():
     assert Project.objects.filter(
         id=project.pk,
     ).exists()
+
 
 @pytest.mark.django_db
 def test_project_update_rejects_duplicate_name_in_same_team():
@@ -1181,9 +1198,13 @@ def test_project_update_rejects_duplicate_name_in_same_team():
 
     assert project_to_update.name == "Proyecto diferente"
 
-    assert Project.objects.filter(
-        team=team,
-    ).count() == 2
+    assert (
+        Project.objects.filter(
+            team=team,
+        ).count()
+        == 2
+    )
+
 
 @pytest.mark.django_db
 def test_project_list_query_count_does_not_grow_per_project():
@@ -1270,6 +1291,7 @@ def test_project_list_query_count_does_not_grow_per_project():
 
     assert ten_projects_queries <= one_project_queries + 1
 
+
 @pytest.mark.django_db
 def test_duplicate_project_name_returns_400():
     owner = User.objects.create_user(
@@ -1313,10 +1335,7 @@ def test_duplicate_project_name_returns_400():
         format="json",
     )
 
-    assert (
-        response.status_code
-        == status.HTTP_400_BAD_REQUEST
-    )
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     assert "name" in response.data
 
@@ -1327,6 +1346,7 @@ def test_duplicate_project_name_returns_400():
         ).count()
         == 1
     )
+
 
 @pytest.mark.django_db
 def test_same_project_name_is_allowed_in_different_teams():

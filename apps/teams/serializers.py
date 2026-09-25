@@ -1,22 +1,23 @@
+from django.contrib.auth import get_user_model
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
+
+from apps.users.serializers import UserSummarySerializer
 
 from .models import (
     ASSIGNABLE_MEMBERSHIP_ROLE_CHOICES,
     Membership,
     Team,
 )
-from drf_spectacular.utils import extend_schema_field
-
-from apps.users.serializers import UserSummarySerializer
-from django.contrib.auth import get_user_model
 
 User = get_user_model()
+
 
 class TeamSerializer(serializers.ModelSerializer):
     created_by = serializers.SerializerMethodField()
     member_count = serializers.SerializerMethodField()
 
-    class Meta:       # pyright: ignore[reportIncompatibleVariableOverride]
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         model = Team
         fields = (
             "id",
@@ -41,7 +42,6 @@ class TeamSerializer(serializers.ModelSerializer):
             allow_null=True,
         )
     )
-
     def get_created_by(self, team):
         if team.created_by is None:
             return None
@@ -53,17 +53,11 @@ class TeamSerializer(serializers.ModelSerializer):
         }
 
     def get_member_count(self, team) -> int:
-        annotated_count = getattr(
-            team, 
-            "member_count_value",
-            None
-        )
+        annotated_count = getattr(team, "member_count_value", None)
 
         if annotated_count is not None:
             return annotated_count
         return team.memberships.count()
-    
-
 
     def validate_name(self, value):
         normalized_name = " ".join(value.split())
@@ -74,6 +68,7 @@ class TeamSerializer(serializers.ModelSerializer):
             )
 
         return normalized_name
+
 
 class TeamMembershipSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(
@@ -89,7 +84,7 @@ class TeamMembershipSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
-    class Meta:               # pyright: ignore[reportIncompatibleVariableOverride]
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         model = Membership
         fields = (
             "id",
@@ -100,12 +95,12 @@ class TeamMembershipSerializer(serializers.ModelSerializer):
         )
         read_only_fields = fields
 
+
 class TeamMembershipCreateSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=150)
 
     role = serializers.ChoiceField(
         choices=ASSIGNABLE_MEMBERSHIP_ROLE_CHOICES,
-        
         default=Membership.Role.MEMBER,
     )
 
@@ -118,31 +113,27 @@ class TeamMembershipCreateSerializer(serializers.Serializer):
 
         if user is None:
             raise serializers.ValidationError(
-                {
-                    "username": (
-                        "No existe un usuario con ese nombre."
-                    )
-                }
+                {"username": ("No existe un usuario con ese nombre.")}
             )
 
         attrs["user"] = user
 
         return attrs
 
-class TeamMembershipRoleUpdateSerializer(
-    serializers.ModelSerializer
-):
-    role = serializers.ChoiceField(
-        choices=ASSIGNABLE_MEMBERSHIP_ROLE_CHOICES
-    )
-    class Meta:                 # pyright: ignore[reportIncompatibleVariableOverride]
+
+class TeamMembershipRoleUpdateSerializer(serializers.ModelSerializer):
+    role = serializers.ChoiceField(choices=ASSIGNABLE_MEMBERSHIP_ROLE_CHOICES)
+
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         model = Membership
         fields = ("role",)
+
 
 class TeamOwnershipTransferSerializer(serializers.Serializer):
     user_id = serializers.IntegerField(
         min_value=1,
     )
+
 
 class DashboardTaskBreakdownSerializer(serializers.Serializer):
     total = serializers.IntegerField(read_only=True)

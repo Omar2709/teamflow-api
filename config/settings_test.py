@@ -1,6 +1,5 @@
 from .settings import *
 
-
 ALLOWED_HOSTS = [
     "testserver",
     "localhost",
@@ -15,10 +14,7 @@ PASSWORD_HASHERS = [
 
 CACHES = {
     "default": {
-        "BACKEND": (
-            "django.core.cache.backends.locmem."
-            "LocMemCache"
-        ),
+        "BACKEND": ("django.core.cache.backends.locmem.LocMemCache"),
         "LOCATION": "teamflow-tests",
     }
 }

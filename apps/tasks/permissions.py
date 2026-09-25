@@ -1,6 +1,6 @@
 from typing import Any
 
-from rest_framework.permissions import BasePermission, SAFE_METHODS
+from rest_framework.permissions import SAFE_METHODS, BasePermission
 from rest_framework.request import Request
 from rest_framework.views import APIView
 
@@ -19,8 +19,7 @@ class CanAccessTask(BasePermission):
         task = obj
 
         membership = (
-            Membership.objects
-            .filter(
+            Membership.objects.filter(
                 team=task.project.team,
                 user=request.user,
             )
@@ -34,16 +33,10 @@ class CanAccessTask(BasePermission):
         if request.method in SAFE_METHODS:
             return True
 
-        if membership.role in {
+        if membership.role in (
             Membership.Role.OWNER,
             Membership.Role.ADMIN,
-        }:
-            return True
-
-        if (
-            request.method == "PATCH"
-            and task.assigned_to_id == request.user.pk
         ):
             return True
 
-        return False
+        return request.method == "PATCH" and task.assigned_to_id == request.user.pk

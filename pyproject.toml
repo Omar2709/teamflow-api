@@ -2,6 +2,7 @@
 name = "teamflow"
 version = "0.1.0"
 requires-python = ">=3.13,<3.14"
+
 dependencies = [
     "celery[redis]==5.6.3",
     "django==6.0.7",
@@ -14,10 +15,93 @@ dependencies = [
     "python-dotenv==1.2.2",
 ]
 
+
 [dependency-groups]
 dev = [
     "django-stubs==6.0.9",
     "djangorestframework-stubs==3.17.1",
     "pytest==9.1.1",
     "pytest-django==4.12.0",
+    "ruff==0.16.9",
 ]
+
+
+# =========================================================
+# RUFF
+# =========================================================
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+
+extend-exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "**/migrations/*",
+]
+
+
+# =========================================================
+# RUFF - LINTER
+# =========================================================
+
+[tool.ruff.lint]
+select = [
+    "E4",   # Pycodestyle - imports
+    "E7",   # Pycodestyle - statements
+    "E9",   # Errores de sintaxis/runtime
+    "F",    # Pyflakes
+    "I",    # Ordenamiento de imports
+    "UP",   # Modernización de sintaxis Python
+    "B",    # Flake8-bugbear
+    "SIM",  # Simplificaciones
+    "DJ",   # Reglas específicas de Django
+    "S",    # Seguridad
+    "RUF",  # Reglas propias de Ruff
+]
+
+
+# =========================================================
+# EXCEPCIONES POR ARCHIVO
+# =========================================================
+
+[tool.ruff.lint.per-file-ignores]
+
+# En los tests es normal usar assert y contraseñas ficticias.
+#
+# S101 -> uso de assert
+# S105 -> password hardcodeado en una variable
+# S106 -> password hardcodeado como argumento
+"**/tests.py" = [
+    "S101",
+    "S105",
+    "S106",
+]
+
+"**/tests/**/*.py" = [
+    "S101",
+    "S105",
+    "S106",
+]
+
+"**/test_*.py" = [
+    "S101",
+    "S105",
+    "S106",
+]
+
+# En Django es habitual heredar settings para el entorno de pruebas.
+"config/settings_test.py" = [
+    "F403",
+]
+
+
+# =========================================================
+# RUFF - FORMATTER
+# =========================================================
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

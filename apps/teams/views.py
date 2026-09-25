@@ -1,24 +1,24 @@
 import logging
+
 from django.db import transaction
 from django.db.models import Count
-from rest_framework import generics, permissions, status
 from django.shortcuts import get_object_or_404
+from rest_framework import generics, permissions, status
 from rest_framework.exceptions import (
     PermissionDenied,
     ValidationError,
-    )
+)
 from rest_framework.response import Response
 
 from .models import Membership, Team
 from .permissions import IsTeamMemberOrManager
 from .serializers import (
-    TeamOwnershipTransferSerializer,
-    TeamMembershipRoleUpdateSerializer,
     TeamMembershipCreateSerializer,
+    TeamMembershipRoleUpdateSerializer,
     TeamMembershipSerializer,
-    TeamSerializer
+    TeamOwnershipTransferSerializer,
+    TeamSerializer,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +29,7 @@ class TeamListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         return (
-            Team.objects
-            .select_related("created_by")
+            Team.objects.select_related("created_by")
             .annotate(
                 member_count_value=Count(
                     "memberships",
@@ -71,8 +70,7 @@ class TeamDetailView(generics.RetrieveUpdateAPIView):
 
     def get_queryset(self):
         return (
-            Team.objects
-            .select_related("created_by")
+            Team.objects.select_related("created_by")
             .annotate(
                 member_count_value=Count(
                     "memberships",
@@ -82,12 +80,9 @@ class TeamDetailView(generics.RetrieveUpdateAPIView):
             .filter(members=self.request.user)
         )
 
-class TeamMembershipListView(
-    generics.ListCreateAPIView
-):
-    permission_classes = (
-        permissions.IsAuthenticated,
-    )
+
+class TeamMembershipListView(generics.ListCreateAPIView):
+    permission_classes = (permissions.IsAuthenticated,)
 
     def get_team(self):
         if not hasattr(self, "_team"):
@@ -102,8 +97,7 @@ class TeamMembershipListView(
 
     def get_queryset(self):
         return (
-            Membership.objects
-            .filter(team=self.get_team())
+            Membership.objects.filter(team=self.get_team())
             .select_related("user")
             .order_by("joined_at")
         )
@@ -121,7 +115,12 @@ class TeamMembershipListView(
         }
 
     @transaction.atomic
-    def create(self, request, *_args, **_kwargs, ):
+    def create(
+        self,
+        request,
+        *_args,
+        **_kwargs,
+    ):
         team = self.get_team()
 
         requester_membership = Membership.objects.get(
@@ -133,9 +132,7 @@ class TeamMembershipListView(
             Membership.Role.OWNER,
             Membership.Role.ADMIN,
         }:
-            raise PermissionDenied(
-                "No tienes permiso para agregar miembros."
-            )
+            raise PermissionDenied("No tienes permiso para agregar miembros.")
 
         serializer = self.get_serializer(
             data=request.data,
@@ -148,31 +145,22 @@ class TeamMembershipListView(
         role = serializer.validated_data["role"]
 
         if (
-            requester_membership.role
-            == Membership.Role.ADMIN
+            requester_membership.role == Membership.Role.ADMIN
             and role != Membership.Role.MEMBER
         ):
-            raise PermissionDenied(
-                "Un administrador solo puede agregar miembros."
-            )
+            raise PermissionDenied("Un administrador solo puede agregar miembros.")
 
-        membership, created = (
-            Membership.objects.get_or_create(
-                team=team,
-                user=serializer.validated_data["user"],
-                defaults={
-                    "role": role,
-                },
-            )
+        membership, created = Membership.objects.get_or_create(
+            team=team,
+            user=serializer.validated_data["user"],
+            defaults={
+                "role": role,
+            },
         )
 
         if not created:
             raise ValidationError(
-                {
-                    "username": (
-                        "Este usuario ya pertenece al equipo."
-                    )
-                }
+                {"username": ("Este usuario ya pertenece al equipo.")}
             )
 
         output_serializer = TeamMembershipSerializer(
@@ -184,13 +172,10 @@ class TeamMembershipListView(
             status=status.HTTP_201_CREATED,
         )
 
-class TeamMembershipRoleUpdateView(
-    generics.GenericAPIView
-):
+
+class TeamMembershipRoleUpdateView(generics.GenericAPIView):
     serializer_class = TeamMembershipRoleUpdateSerializer
-    permission_classes = (
-        permissions.IsAuthenticated,
-    )
+    permission_classes = (permissions.IsAuthenticated,)
 
     http_method_names = (
         "patch",
@@ -215,13 +200,8 @@ class TeamMembershipRoleUpdateView(
             user=request.user,
         )
 
-        if (
-            requester_membership.role
-            != Membership.Role.OWNER
-        ):
-            raise PermissionDenied(
-                "Solo el propietario puede cambiar roles."
-            )
+        if requester_membership.role != Membership.Role.OWNER:
+            raise PermissionDenied("Solo el propietario puede cambiar roles.")
 
         target_membership = get_object_or_404(
             Membership.objects.select_related("user"),
@@ -229,17 +209,9 @@ class TeamMembershipRoleUpdateView(
             user_id=self.kwargs["user_id"],
         )
 
-        if (
-            target_membership.role
-            == Membership.Role.OWNER
-        ):
+        if target_membership.role == Membership.Role.OWNER:
             raise ValidationError(
-                {
-                    "role": (
-                        "No puedes modificar el rol "
-                        "del propietario."
-                    )
-                }
+                {"role": ("No puedes modificar el rol del propietario.")}
             )
 
         serializer = self.get_serializer(
@@ -309,16 +281,14 @@ class TeamMembershipRoleUpdateView(
 
         # Un member no puede eliminar a otras personas.
         if requester_membership.role == Membership.Role.MEMBER:
-            raise PermissionDenied(
-                "No tienes permiso para eliminar miembros."
-            )
+            raise PermissionDenied("No tienes permiso para eliminar miembros.")
 
         # Un admin solo puede eliminar usuarios con rol member.
-        if requester_membership.role == Membership.Role.ADMIN:
-            if target_membership.role != Membership.Role.MEMBER:
-                raise PermissionDenied(
-                    "Un administrador solo puede eliminar miembros."
-                )
+        if (
+            requester_membership.role == Membership.Role.ADMIN
+            and target_membership.role != Membership.Role.MEMBER
+        ):
+            raise PermissionDenied("Un administrador solo puede eliminar miembros.")
 
         target_membership.delete()
 
@@ -326,13 +296,10 @@ class TeamMembershipRoleUpdateView(
             status=status.HTTP_204_NO_CONTENT,
         )
 
-class TeamOwnershipTransferView(
-    generics.GenericAPIView
-):
+
+class TeamOwnershipTransferView(generics.GenericAPIView):
     serializer_class = TeamOwnershipTransferSerializer
-    permission_classes = (
-        permissions.IsAuthenticated,
-    )
+    permission_classes = (permissions.IsAuthenticated,)
 
     http_method_names = (
         "post",
@@ -349,18 +316,11 @@ class TeamOwnershipTransferView(
             raise_exception=True,
         )
 
-        new_owner_user_id = serializer.validated_data[
-            "user_id"
-        ]
+        new_owner_user_id = serializer.validated_data["user_id"]
 
         if new_owner_user_id == request.user.pk:
             raise ValidationError(
-                {
-                    "user_id": (
-                        "No puedes transferirte la propiedad "
-                        "a ti mismo."
-                    )
-                }
+                {"user_id": ("No puedes transferirte la propiedad a ti mismo.")}
             )
 
         team = get_object_or_404(
@@ -371,45 +331,27 @@ class TeamOwnershipTransferView(
         )
 
         current_owner = get_object_or_404(
-            Membership.objects
-            .select_for_update()
-            .select_related("user"),
+            Membership.objects.select_for_update().select_related("user"),
             team=team,
             user=request.user,
         )
 
-        if (
-            current_owner.role
-            != Membership.Role.OWNER
-        ):
-            raise PermissionDenied(
-                "Solo el propietario puede transferir "
-                "la propiedad."
-            )
+        if current_owner.role != Membership.Role.OWNER:
+            raise PermissionDenied("Solo el propietario puede transferir la propiedad.")
 
         new_owner = get_object_or_404(
-            Membership.objects
-            .select_for_update()
-            .select_related("user"),
+            Membership.objects.select_for_update().select_related("user"),
             team=team,
             user_id=new_owner_user_id,
         )
 
         current_owner.role = Membership.Role.ADMIN
 
-        current_owner.save(
-            update_fields=(
-                "role",
-            )
-        )
+        current_owner.save(update_fields=("role",))
 
         new_owner.role = Membership.Role.OWNER
 
-        new_owner.save(
-            update_fields=(
-                "role",
-            )
-        )
+        new_owner.save(update_fields=("role",))
 
         logger.info(
             "Team ownership transferred.",
@@ -422,9 +364,7 @@ class TeamOwnershipTransferView(
 
         return Response(
             {
-                "message": (
-                    "Propiedad transferida correctamente."
-                ),
+                "message": ("Propiedad transferida correctamente."),
                 "new_owner": TeamMembershipSerializer(
                     new_owner,
                 ).data,

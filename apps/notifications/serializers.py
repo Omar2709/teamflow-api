@@ -3,15 +3,13 @@ from rest_framework import serializers
 from .models import Notification
 
 
-class NotificationSerializer(
-    serializers.ModelSerializer
-):
+class NotificationSerializer(serializers.ModelSerializer):
     task = serializers.IntegerField(
         source="task_id",
         read_only=True,
     )
 
-    class Meta:               # pyright: ignore[reportIncompatibleVariableOverride]
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         model = Notification
 
         fields = (

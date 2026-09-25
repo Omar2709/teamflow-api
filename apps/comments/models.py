@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from django.conf import settings
 from django.db import models
 
@@ -30,7 +32,7 @@ class Comment(models.Model):
 
     class Meta:
         ordering = ("created_at",)
-        indexes = [
+        indexes: ClassVar[list[models.Index]] = [
             models.Index(
                 fields=("task", "created_at"),
                 name="comment_task_created_idx",

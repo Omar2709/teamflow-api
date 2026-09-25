@@ -1,15 +1,13 @@
 from django.urls import path
 
+from .dashboard import TeamDashboardView
 from .views import (
-    TeamDetailView, 
-    TeamListCreateView, 
+    TeamDetailView,
+    TeamListCreateView,
     TeamMembershipListView,
     TeamMembershipRoleUpdateView,
     TeamOwnershipTransferView,
 )
-
-from .dashboard import TeamDashboardView
-
 
 app_name = "teams"
 
@@ -30,9 +28,9 @@ urlpatterns = [
         name="team-members",
     ),
     path(
-    "teams/<int:team_id>/members/<int:user_id>/",
-    TeamMembershipRoleUpdateView.as_view(),
-    name="team-member-detail",
+        "teams/<int:team_id>/members/<int:user_id>/",
+        TeamMembershipRoleUpdateView.as_view(),
+        name="team-member-detail",
     ),
     path(
         "teams/<int:team_id>/transfer-ownership/",

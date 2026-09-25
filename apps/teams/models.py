@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
@@ -71,7 +73,7 @@ class Membership(models.Model):
     class Meta:
         ordering = ("joined_at",)
 
-        constraints = [
+        constraints: ClassVar[list[models.BaseConstraint]] = [
             models.UniqueConstraint(
                 fields=("team", "user"),
                 name="unique_user_per_team",
@@ -83,7 +85,7 @@ class Membership(models.Model):
             ),
         ]
 
-        indexes = [
+        indexes: ClassVar[list[models.Index]] = [
             models.Index(
                 fields=("team", "role"),
                 name="membership_team_role_idx",
@@ -95,10 +97,8 @@ class Membership(models.Model):
         ]
 
     def __str__(self):
-        return (
-            f"{self.user.username} - "
-            f"{self.team.name} ({self.role})"
-        )
+        return f"{self.user.username} - {self.team.name} ({self.role})"
+
 
 MEMBERSHIP_ROLE_CHOICES = Membership.Role.choices
 

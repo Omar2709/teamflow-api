@@ -1,0 +1,58 @@
+{
+    "cSpell.language": "en,es",
+
+    "cSpell.words": [
+        "celery",
+        "Celery",
+        "celerybeat",
+        "CREATEDB",
+        "django",
+        "Django",
+        "django-filter",
+        "djangorestframework",
+        "dotenv",
+        "filterset",
+        "github",
+        "gunicorn",
+        "hardcodeado",
+        "healthcheck",
+        "HSTS",
+        "htmlcov",
+        "isready",
+        "KEEPALIVE",
+        "loglevel",
+        "makemigrations",
+        "metaclass",
+        "postgres",
+        "psycopg",
+        "pycache",
+        "Pycodestyle",
+        "Pyflakes",
+        "pyproject",
+        "pytest",
+        "queryset",
+        "redis",
+        "runserver",
+        "simplejwt",
+        "sqlite",
+        "staticfiles",
+        "teamflow",
+        "venv",
+        "wsgi"
+    ],
+
+    "explorer.compactFolders": false,
+
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true,
+
+        "editor.codeActionsOnSave": {
+            "source.fixAll.ruff": "explicit",
+            "source.organizeImports.ruff": "explicit"
+        }
+    },
+
+    "ruff.nativeServer": "on",
+    "ruff.configurationPreference": "filesystemFirst"
+}

@@ -1,14 +1,11 @@
 import pytest
-
 from django.db import DatabaseError
 from django.test import override_settings
 from django.urls import reverse
 
 
 def test_health_returns_ok(client):
-    response = client.get(
-        reverse("health")
-    )
+    response = client.get(reverse("health"))
 
     assert response.status_code == 200
     assert response.json() == {
@@ -20,9 +17,7 @@ def test_health_returns_ok(client):
 def test_readiness_returns_ready_when_database_is_available(
     client,
 ):
-    response = client.get(
-        reverse("readiness")
-    )
+    response = client.get(reverse("readiness"))
 
     assert response.status_code == 200
     assert response.json() == {
@@ -39,14 +34,13 @@ def test_readiness_returns_503_when_database_is_unavailable(
         lambda: False,
     )
 
-    response = client.get(
-        reverse("readiness")
-    )
+    response = client.get(reverse("readiness"))
 
     assert response.status_code == 503
     assert response.json() == {
         "status": "unavailable",
     }
+
 
 @pytest.mark.django_db
 @override_settings(
@@ -65,9 +59,7 @@ def test_readiness_accepts_alb_private_host(
     response = client.get(
         reverse("readiness"),
         HTTP_HOST="10.20.1.25:8000",
-        HTTP_USER_AGENT=(
-            "ELB-HealthChecker/2.0"
-        ),
+        HTTP_USER_AGENT=("ELB-HealthChecker/2.0"),
     )
 
     assert response.status_code == 200
@@ -75,6 +67,7 @@ def test_readiness_accepts_alb_private_host(
     assert response.json() == {
         "status": "ready",
     }
+
 
 @override_settings(
     ALLOWED_HOSTS=[
@@ -91,6 +84,7 @@ def test_regular_endpoint_rejects_invalid_host(
     )
 
     assert response.status_code == 400
+
 
 @override_settings(
     ALLOWED_HOSTS=[
@@ -109,13 +103,11 @@ def test_forwarded_https_is_treated_as_secure(
         reverse("schema"),
         HTTP_HOST="api.teamflow.test",
         HTTP_X_FORWARDED_PROTO="https",
-        HTTP_ACCEPT=(
-            "application/vnd.oai."
-            "openapi+json"
-        ),
+        HTTP_ACCEPT=("application/vnd.oai.openapi+json"),
     )
 
     assert response.status_code == 200
+
 
 @override_settings(
     ALLOWED_HOSTS=[
@@ -137,9 +129,8 @@ def test_regular_http_request_redirects_to_https(
 
     assert response.status_code == 301
 
-    assert response["Location"].startswith(
-        "https://"
-    )
+    assert response["Location"].startswith("https://")
+
 
 def test_readiness_logs_database_failure(
     client,
@@ -147,9 +138,7 @@ def test_readiness_logs_database_failure(
     caplog,
 ):
     def unavailable():
-        raise DatabaseError(
-            "database unavailable"
-        )
+        raise DatabaseError("database unavailable")
 
     monkeypatch.setattr(
         "config.health.connection.cursor",
@@ -166,7 +155,4 @@ def test_readiness_logs_database_failure(
 
     assert response.status_code == 503
 
-    assert (
-        "Database readiness check failed."
-        in caplog.text
-    )
+    assert "Database readiness check failed." in caplog.text

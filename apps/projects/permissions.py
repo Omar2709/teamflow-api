@@ -1,4 +1,4 @@
-from rest_framework.permissions import BasePermission, SAFE_METHODS
+from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 from apps.teams.models import Membership
 
@@ -10,8 +10,7 @@ class CanAccessProject(BasePermission):
         project = obj
 
         membership = (
-            Membership.objects
-            .filter(
+            Membership.objects.filter(
                 team=project.team,
                 user=request.user,
             )

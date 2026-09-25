@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
@@ -72,7 +74,7 @@ class Task(models.Model):
 
     class Meta:
         ordering = ("-created_at",)
-        indexes = [
+        indexes: ClassVar[list[models.Index]] = [
             models.Index(
                 fields=("project", "status"),
                 name="task_project_status_idx",

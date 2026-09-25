@@ -1,5 +1,5 @@
-from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
+from rest_framework import serializers
 
 from apps.users.serializers import UserSummarySerializer
 
@@ -14,7 +14,7 @@ class CommentSerializer(serializers.ModelSerializer):
 
     author = serializers.SerializerMethodField()
 
-    class Meta:            # pyright: ignore[reportIncompatibleVariableOverride]
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         model = Comment
         fields = (
             "id",
@@ -52,8 +52,6 @@ class CommentSerializer(serializers.ModelSerializer):
         normalized_content = value.strip()
 
         if not normalized_content:
-            raise serializers.ValidationError(
-                "El comentario no puede estar vacío."
-            )
+            raise serializers.ValidationError("El comentario no puede estar vacío.")
 
         return normalized_content

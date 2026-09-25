@@ -1,24 +1,22 @@
 from datetime import timedelta
 
-from drf_spectacular.utils import extend_schema
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema
 from rest_framework import permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .serializers import TeamDashboardResponseSerializer
 
 from apps.projects.models import Project
 from apps.tasks.models import Task
 
 from .models import Membership, Team
+from .serializers import TeamDashboardResponseSerializer
 
 
 class TeamDashboardView(APIView):
-    permission_classes = (
-        permissions.IsAuthenticated,
-    )
+    permission_classes = (permissions.IsAuthenticated,)
 
     @extend_schema(
         tags=["teams"],
@@ -32,7 +30,6 @@ class TeamDashboardView(APIView):
             200: TeamDashboardResponseSerializer,
         },
     )
-
     def get(self, request, team_id):
         team = get_object_or_404(
             Team.objects.filter(
@@ -167,8 +164,7 @@ class TeamDashboardView(APIView):
         )
 
         projects = list(
-            Project.objects
-            .filter(
+            Project.objects.filter(
                 team=team,
             )
             .values(
@@ -206,18 +202,10 @@ class TeamDashboardView(APIView):
                 "id": project["id"],
                 "name": project["name"],
                 "tasks": {
-                    "total": project[
-                        "task_total"
-                    ],
-                    "todo": project[
-                        "task_todo"
-                    ],
-                    "in_progress": project[
-                        "task_in_progress"
-                    ],
-                    "done": project[
-                        "task_done"
-                    ],
+                    "total": project["task_total"],
+                    "todo": project["task_todo"],
+                    "in_progress": project["task_in_progress"],
+                    "done": project["task_done"],
                 },
             }
             for project in projects

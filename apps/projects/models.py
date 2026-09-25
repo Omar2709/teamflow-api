@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from django.conf import settings
 from django.db import models
 
@@ -36,7 +38,7 @@ class Project(models.Model):
 
     class Meta:
         ordering = ("-created_at",)
-        constraints = [
+        constraints: ClassVar[list[models.BaseConstraint]] = [
             models.UniqueConstraint(
                 fields=("team", "name"),
                 name="unique_project_name_per_team",

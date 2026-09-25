@@ -1,7 +1,8 @@
-from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
+from rest_framework import serializers
 
 from apps.users.serializers import UserSummarySerializer
+
 from .models import Project
 
 
@@ -13,7 +14,7 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     created_by = serializers.SerializerMethodField()
 
-    class Meta:           # pyright: ignore[reportIncompatibleVariableOverride]
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         model = Project
         fields = (
             "id",
@@ -35,10 +36,9 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(
         UserSummarySerializer(
-         allow_null=True,
+            allow_null=True,
         )
     )
-
     def get_created_by(self, project):
         if project.created_by is None:
             return None
@@ -72,8 +72,7 @@ class ProjectSerializer(serializers.ModelSerializer):
 
             if queryset.exists():
                 raise serializers.ValidationError(
-                    "Ya existe un proyecto con este nombre "
-                    "en el equipo."
+                    "Ya existe un proyecto con este nombre en el equipo."
                 )
 
         return normalized_name

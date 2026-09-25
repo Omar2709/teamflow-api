@@ -1,10 +1,11 @@
 import pytest
-from apps.users.models import User
 from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
+
+from apps.users.models import User
 
 
 @pytest.fixture(autouse=True)
@@ -27,9 +28,7 @@ def test_registration_is_throttled_after_rate_limit():
         "first_name": "Throttle",
         "last_name": "User",
         "password": "Password123!",
-        "password_confirmation": (
-            "DifferentPassword123!"
-        ),
+        "password_confirmation": ("DifferentPassword123!"),
     }
 
     for _ in range(5):
@@ -39,10 +38,7 @@ def test_registration_is_throttled_after_rate_limit():
             format="json",
         )
 
-        assert (
-            response.status_code
-            == status.HTTP_400_BAD_REQUEST
-        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     response = client.post(
         reverse("users:register"),
@@ -50,10 +46,7 @@ def test_registration_is_throttled_after_rate_limit():
         format="json",
     )
 
-    assert (
-        response.status_code
-        == status.HTTP_429_TOO_MANY_REQUESTS
-    )
+    assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
 
 
 @pytest.mark.django_db
@@ -146,9 +139,13 @@ def test_registration_rejects_duplicate_username():
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert "username" in response.data
 
-    assert User.objects.filter(
-        username="usuario_existente",
-    ).count() == 1
+    assert (
+        User.objects.filter(
+            username="usuario_existente",
+        ).count()
+        == 1
+    )
+
 
 @pytest.mark.django_db
 def test_user_can_login_and_receive_jwt_tokens():
@@ -184,6 +181,7 @@ def test_user_can_login_and_receive_jwt_tokens():
     assert len(response.data["access"]) > 0
     assert len(response.data["refresh"]) > 0
 
+
 @pytest.mark.django_db
 def test_registration_rejects_numeric_password():
     client = APIClient()
@@ -203,16 +201,14 @@ def test_registration_rejects_numeric_password():
         format="json",
     )
 
-    assert (
-        response.status_code
-        == status.HTTP_400_BAD_REQUEST
-    )
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     assert "password" in response.data
 
     assert not User.objects.filter(
         username="numeric_password_user",
     ).exists()
+
 
 @pytest.mark.django_db
 def test_registration_rejects_password_too_similar_to_username():
@@ -233,16 +229,14 @@ def test_registration_rejects_password_too_similar_to_username():
         format="json",
     )
 
-    assert (
-        response.status_code
-        == status.HTTP_400_BAD_REQUEST
-    )
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     assert "password" in response.data
 
     assert not User.objects.filter(
         username="omarbackend",
     ).exists()
+
 
 @pytest.mark.django_db
 def test_login_rejects_invalid_password():
@@ -270,6 +264,7 @@ def test_login_rejects_invalid_password():
     assert "access" not in response.data
     assert "refresh" not in response.data
 
+
 def test_me_endpoint_rejects_unauthenticated_user():
     client = APIClient()
 
@@ -278,6 +273,7 @@ def test_me_endpoint_rejects_unauthenticated_user():
     )
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
 
 @pytest.mark.django_db
 def test_authenticated_user_can_access_me_endpoint():
@@ -314,6 +310,7 @@ def test_authenticated_user_can_access_me_endpoint():
 
     assert "password" not in response.data["data"]
 
+
 def test_me_endpoint_rejects_invalid_access_token():
     client = APIClient()
 
@@ -327,6 +324,7 @@ def test_me_endpoint_rejects_invalid_access_token():
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert "detail" in response.data
+
 
 @pytest.mark.django_db
 def test_user_can_refresh_jwt_tokens():
@@ -362,6 +360,7 @@ def test_user_can_refresh_jwt_tokens():
 
     assert response.data["refresh"] != original_refresh_string
 
+
 @pytest.mark.django_db
 def test_old_refresh_token_is_blacklisted_after_rotation():
     user = User.objects.create_user(
@@ -370,9 +369,7 @@ def test_old_refresh_token_is_blacklisted_after_rotation():
         password="Password123!",
     )
 
-    original_refresh = str(
-        RefreshToken.for_user(user)
-    )
+    original_refresh = str(RefreshToken.for_user(user))
 
     client = APIClient()
 
@@ -399,6 +396,7 @@ def test_old_refresh_token_is_blacklisted_after_rotation():
     assert second_response.status_code == status.HTTP_401_UNAUTHORIZED
     assert "detail" in second_response.data
     assert second_response.data["code"] == "token_not_valid"
+
 
 @pytest.mark.django_db
 def test_logout_blacklists_refresh_token():
@@ -427,10 +425,7 @@ def test_logout_blacklists_refresh_token():
     )
 
     assert logout_response.status_code == status.HTTP_200_OK
-    assert (
-        logout_response.data["message"]
-        == "Sesión cerrada correctamente."
-    )
+    assert logout_response.data["message"] == "Sesión cerrada correctamente."
 
     refresh_response = client.post(
         reverse("users:token-refresh"),
@@ -442,6 +437,7 @@ def test_logout_blacklists_refresh_token():
 
     assert refresh_response.status_code == status.HTTP_401_UNAUTHORIZED
     assert refresh_response.data["code"] == "token_not_valid"
+
 
 @pytest.mark.django_db
 def test_logout_rejects_request_without_refresh_token():
@@ -467,10 +463,8 @@ def test_logout_rejects_request_without_refresh_token():
     )
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert (
-        response.data["message"]
-        == "Debes proporcionar el refresh token."
-    )
+    assert response.data["message"] == "Debes proporcionar el refresh token."
+
 
 def test_logout_rejects_unauthenticated_user():
     client = APIClient()
@@ -484,6 +478,7 @@ def test_logout_rejects_unauthenticated_user():
     )
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
 
 @pytest.mark.django_db
 def test_logout_rejects_invalid_refresh_token():
@@ -512,9 +507,9 @@ def test_logout_rejects_invalid_refresh_token():
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert (
-        response.data["message"]
-        == "El refresh token no es válido o ya fue invalidado."
+        response.data["message"] == "El refresh token no es válido o ya fue invalidado."
     )
+
 
 @pytest.mark.django_db
 def test_token_verify_accepts_valid_access_token():
@@ -540,6 +535,7 @@ def test_token_verify_accepts_valid_access_token():
     assert response.status_code == status.HTTP_200_OK
     assert not response.data
 
+
 def test_token_verify_rejects_invalid_token():
     client = APIClient()
 
@@ -554,6 +550,7 @@ def test_token_verify_rejects_invalid_token():
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert "detail" in response.data
 
+
 def test_openapi_schema_is_publicly_available():
     client = APIClient()
 
@@ -563,20 +560,20 @@ def test_openapi_schema_is_publicly_available():
 
     assert response.status_code == status.HTTP_200_OK
 
+
 def test_openapi_schema_contains_teamflow_metadata():
     client = APIClient()
 
     response = client.get(
         reverse("schema"),
-        HTTP_ACCEPT=(
-            "application/vnd.oai.openapi+json"
-        ),
+        HTTP_ACCEPT=("application/vnd.oai.openapi+json"),
     )
 
     assert response.status_code == status.HTTP_200_OK
 
     assert response.data["info"]["title"] == "TeamFlow API"
     assert response.data["info"]["version"] == "1.0.0"
+
 
 def test_swagger_ui_is_publicly_available():
     client = APIClient()
@@ -587,6 +584,7 @@ def test_swagger_ui_is_publicly_available():
 
     assert response.status_code == status.HTTP_200_OK
 
+
 def test_redoc_is_publicly_available():
     client = APIClient()
 
@@ -596,38 +594,31 @@ def test_redoc_is_publicly_available():
 
     assert response.status_code == status.HTTP_200_OK
 
+
 def test_openapi_schema_includes_jwt_security_scheme():
     client = APIClient()
 
     response = client.get(
         reverse("schema"),
-        HTTP_ACCEPT=(
-            "application/vnd.oai.openapi+json"
-        ),
+        HTTP_ACCEPT=("application/vnd.oai.openapi+json"),
     )
 
-    security_schemes = (
-        response.data
-        .get("components", {})
-        .get("securitySchemes", {})
-    )
+    security_schemes = response.data.get("components", {}).get("securitySchemes", {})
 
     assert security_schemes
 
     assert any(
-        scheme.get("type") == "http"
-        and scheme.get("scheme") == "bearer"
+        scheme.get("type") == "http" and scheme.get("scheme") == "bearer"
         for scheme in security_schemes.values()
     )
+
 
 def test_openapi_schema_contains_main_api_endpoints():
     client = APIClient()
 
     response = client.get(
         reverse("schema"),
-        HTTP_ACCEPT=(
-            "application/vnd.oai.openapi+json"
-        ),
+        HTTP_ACCEPT=("application/vnd.oai.openapi+json"),
     )
 
     paths = response.data["paths"]
@@ -636,169 +627,113 @@ def test_openapi_schema_contains_main_api_endpoints():
     assert "/api/teams/" in paths
     assert "/api/notifications/" in paths
 
+
 def test_openapi_schema_documents_current_user_response():
     client = APIClient()
 
     response = client.get(
         reverse("schema"),
-        HTTP_ACCEPT=(
-            "application/vnd.oai.openapi+json"
-        ),
+        HTTP_ACCEPT=("application/vnd.oai.openapi+json"),
     )
 
     assert response.status_code == status.HTTP_200_OK
 
-    operation = response.data["paths"][
-        "/api/auth/me/"
-    ]["get"]
+    operation = response.data["paths"]["/api/auth/me/"]["get"]
 
-    success_response = operation[
-        "responses"
-    ]["200"]
+    success_response = operation["responses"]["200"]
 
     assert "content" in success_response
 
-    schema = success_response[
-        "content"
-    ][
-        "application/json"
-    ]["schema"]
+    schema = success_response["content"]["application/json"]["schema"]
 
-    assert schema["$ref"].endswith(
-        "/CurrentUserResponse"
-    )
+    assert schema["$ref"].endswith("/CurrentUserResponse")
+
 
 def test_openapi_schema_documents_logout_request_and_responses():
     client = APIClient()
 
     response = client.get(
         reverse("schema"),
-        HTTP_ACCEPT=(
-            "application/vnd.oai.openapi+json"
-        ),
+        HTTP_ACCEPT=("application/vnd.oai.openapi+json"),
     )
 
     assert response.status_code == status.HTTP_200_OK
 
-    operation = response.data["paths"][
-        "/api/auth/logout/"
-    ]["post"]
+    operation = response.data["paths"]["/api/auth/logout/"]["post"]
 
-    request_schema = operation[
-        "requestBody"
-    ][
-        "content"
-    ][
-        "application/json"
-    ]["schema"]
+    request_schema = operation["requestBody"]["content"]["application/json"]["schema"]
 
-    assert request_schema["$ref"].endswith(
-        "/LogoutRequest"
-    )
+    assert request_schema["$ref"].endswith("/LogoutRequest")
 
-    success_schema = operation[
-        "responses"
-    ]["200"][
-        "content"
-    ][
-        "application/json"
-    ]["schema"]
+    success_schema = operation["responses"]["200"]["content"]["application/json"][
+        "schema"
+    ]
 
-    assert success_schema["$ref"].endswith(
-        "/LogoutResponse"
-    )
+    assert success_schema["$ref"].endswith("/LogoutResponse")
 
-    error_schema = operation[
-        "responses"
-    ]["400"][
-        "content"
-    ][
-        "application/json"
-    ]["schema"]
+    error_schema = operation["responses"]["400"]["content"]["application/json"][
+        "schema"
+    ]
 
-    assert error_schema["$ref"].endswith(
-        "/LogoutResponse"
-    )
+    assert error_schema["$ref"].endswith("/LogoutResponse")
+
 
 def test_openapi_schema_documents_user_summary_fields():
     client = APIClient()
 
     response = client.get(
         reverse("schema"),
-        HTTP_ACCEPT=(
-            "application/vnd.oai.openapi+json"
-        ),
+        HTTP_ACCEPT=("application/vnd.oai.openapi+json"),
     )
 
     assert response.status_code == status.HTTP_200_OK
 
-    schemas = response.data[
-        "components"
-    ]["schemas"]
+    schemas = response.data["components"]["schemas"]
 
     assert "UserSummary" in schemas
 
     user_summary = schemas["UserSummary"]
 
-    assert set(
-        user_summary["properties"]
-    ) == {
+    assert set(user_summary["properties"]) == {
         "id",
         "username",
         "email",
     }
 
-    assert (
-        user_summary["properties"]["id"]["type"]
-        == "integer"
-    )
+    assert user_summary["properties"]["id"]["type"] == "integer"
 
-    assert (
-        user_summary["properties"]["email"]["format"]
-        == "email"
-    )
+    assert user_summary["properties"]["email"]["format"] == "email"
+
 
 def test_openapi_schema_uses_explicit_role_enum_names():
     client = APIClient()
 
     response = client.get(
         reverse("schema"),
-        HTTP_ACCEPT=(
-            "application/vnd.oai.openapi+json"
-        ),
+        HTTP_ACCEPT=("application/vnd.oai.openapi+json"),
     )
 
     assert response.status_code == status.HTTP_200_OK
 
-    schemas = response.data[
-        "components"
-    ]["schemas"]
+    schemas = response.data["components"]["schemas"]
 
     assert "MembershipRoleEnum" in schemas
 
-    assert (
-        "AssignableMembershipRoleEnum"
-        in schemas
-    )
+    assert "AssignableMembershipRoleEnum" in schemas
 
     assert "Role6b9Enum" not in schemas
 
-    assert set(
-        schemas["MembershipRoleEnum"]["enum"]
-    ) == {
+    assert set(schemas["MembershipRoleEnum"]["enum"]) == {
         "owner",
         "admin",
         "member",
     }
 
-    assert set(
-        schemas[
-            "AssignableMembershipRoleEnum"
-        ]["enum"]
-    ) == {
+    assert set(schemas["AssignableMembershipRoleEnum"]["enum"]) == {
         "admin",
         "member",
     }
+
 
 @pytest.mark.django_db
 def test_login_is_throttled_after_rate_limit():
@@ -818,28 +753,17 @@ def test_login_is_throttled_after_rate_limit():
 
     for _ in range(10):
         response = client.post(
-            reverse(
-                "users:token-obtain-pair"
-            ),
+            reverse("users:token-obtain-pair"),
             payload,
             format="json",
         )
 
-        assert (
-            response.status_code
-            == status.HTTP_401_UNAUTHORIZED
-        )
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     response = client.post(
-        reverse(
-            "users:token-obtain-pair"
-        ),
+        reverse("users:token-obtain-pair"),
         payload,
         format="json",
     )
 
-    assert (
-        response.status_code
-        == status.HTTP_429_TOO_MANY_REQUESTS
-    )
-
+    assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS

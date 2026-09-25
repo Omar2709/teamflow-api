@@ -56,11 +56,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
         if password != password_confirmation:
             raise serializers.ValidationError(
-                {
-                    "password_confirmation": (
-                        "Las contraseñas no coinciden."
-                    )
-                }
+                {"password_confirmation": ("Las contraseñas no coinciden.")}
             )
 
         candidate_user = User(
@@ -88,13 +84,7 @@ class RegisterSerializer(serializers.ModelSerializer):
                 user=candidate_user,
             )
         except DjangoValidationError as exc:
-            raise serializers.ValidationError(
-                {
-                    "password": list(
-                        exc.messages
-                    )
-                }
-            ) from exc
+            raise serializers.ValidationError({"password": list(exc.messages)}) from exc
 
         return attrs
 

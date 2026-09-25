@@ -9,7 +9,6 @@ from .views import (
     ThrottledTokenVerifyView,
 )
 
-
 app_name = "users"
 
 urlpatterns = [

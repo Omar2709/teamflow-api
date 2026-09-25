@@ -8,7 +8,6 @@ from .services import (
     create_due_soon_notifications,
 )
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -28,15 +27,12 @@ logger = logging.getLogger(__name__)
 )
 def notify_due_soon_tasks(self) -> int:
     logger.info(
-        "Starting due-soon notification task. "
-        "retry=%s",
+        "Starting due-soon notification task. retry=%s",
         self.request.retries,
     )
 
     try:
-        notifications = (
-            create_due_soon_notifications()
-        )
+        notifications = create_due_soon_notifications()
 
     except (
         OperationalError,
@@ -51,19 +47,13 @@ def notify_due_soon_tasks(self) -> int:
         raise
 
     except SoftTimeLimitExceeded:
-        logger.exception(
-            "Due-soon notification task exceeded "
-            "its soft time limit."
-        )
+        logger.exception("Due-soon notification task exceeded its soft time limit.")
         raise
 
-    created_count = len(
-        notifications
-    )
+    created_count = len(notifications)
 
     logger.info(
-        "Due-soon notification task completed. "
-        "created=%s retry=%s",
+        "Due-soon notification task completed. created=%s retry=%s",
         created_count,
         self.request.retries,
     )

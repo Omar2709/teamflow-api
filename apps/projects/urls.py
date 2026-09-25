@@ -1,10 +1,6 @@
 from django.urls import path
 
-from .views import (
-    TeamProjectListCreateView,
-    ProjectDetailView
-)
-
+from .views import ProjectDetailView, TeamProjectListCreateView
 
 app_name = "projects"
 
@@ -19,5 +15,5 @@ urlpatterns = [
         "teams/<int:team_id>/projects/<int:pk>/",
         ProjectDetailView.as_view(),
         name="project-detail",
-    )
+    ),
 ]

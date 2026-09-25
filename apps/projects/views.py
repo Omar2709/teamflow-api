@@ -9,17 +9,13 @@ from rest_framework.exceptions import (
 from apps.teams.models import Membership, Team
 
 from .models import Project
-from .serializers import ProjectSerializer
 from .permissions import CanAccessProject
+from .serializers import ProjectSerializer
 
 
-class TeamProjectListCreateView(
-    generics.ListCreateAPIView
-):
+class TeamProjectListCreateView(generics.ListCreateAPIView):
     serializer_class = ProjectSerializer
-    permission_classes = (
-        permissions.IsAuthenticated,
-    )
+    permission_classes = (permissions.IsAuthenticated,)
 
     def get_team(self):
         if not hasattr(self, "_team"):
@@ -34,8 +30,7 @@ class TeamProjectListCreateView(
 
     def get_queryset(self):
         return (
-            Project.objects
-            .filter(team=self.get_team())
+            Project.objects.filter(team=self.get_team())
             .select_related(
                 "team",
                 "created_by",
@@ -61,9 +56,7 @@ class TeamProjectListCreateView(
             Membership.Role.OWNER,
             Membership.Role.ADMIN,
         }:
-            raise PermissionDenied(
-                "No tienes permiso para crear proyectos."
-            )
+            raise PermissionDenied("No tienes permiso para crear proyectos.")
 
         return super().create(
             request,
@@ -96,24 +89,15 @@ class TeamProjectListCreateView(
                 None,
             )
 
-            if (
-                constraint_name
-                == "unique_project_name_per_team"
-            ):
+            if constraint_name == "unique_project_name_per_team":
                 raise ValidationError(
-                    {
-                        "name": (
-                            "Ya existe un proyecto con este "
-                            "nombre en el equipo."
-                        )
-                    }
+                    {"name": ("Ya existe un proyecto con este nombre en el equipo.")}
                 ) from exc
 
             raise
 
-class ProjectDetailView(
-    generics.RetrieveUpdateDestroyAPIView
-):
+
+class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ProjectSerializer
 
     permission_classes = (
@@ -141,15 +125,11 @@ class ProjectDetailView(
         return self._team
 
     def get_queryset(self):
-        return (
-            Project.objects
-            .filter(
-                team=self.get_team(),
-            )
-            .select_related(
-                "team",
-                "created_by",
-            )
+        return Project.objects.filter(
+            team=self.get_team(),
+        ).select_related(
+            "team",
+            "created_by",
         )
 
     def get_serializer_context(self):

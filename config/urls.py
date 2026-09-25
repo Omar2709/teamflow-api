@@ -1,21 +1,19 @@
 from django.contrib import admin
 from django.urls import include, path
-from config.health import health, readiness
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularRedocView,
     SpectacularSwaggerView,
 )
 
+from config.health import health, readiness
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-
     path(
         "api/auth/",
         include("apps.users.urls"),
     ),
-
     path(
         "api/",
         include("apps.teams.urls"),

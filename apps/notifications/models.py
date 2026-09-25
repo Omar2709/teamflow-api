@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
@@ -59,7 +61,7 @@ class Notification(models.Model):
     class Meta:
         ordering = ("-created_at",)
 
-        constraints = [
+        constraints: ClassVar[list[models.BaseConstraint]] = [
             models.UniqueConstraint(
                 fields=(
                     "user",
@@ -73,7 +75,7 @@ class Notification(models.Model):
             ),
         ]
 
-        indexes = [
+        indexes: ClassVar[list[models.Index]] = [
             models.Index(
                 fields=("user", "is_read"),
                 name="notification_user_read_idx",

@@ -1,6 +1,6 @@
+from collections.abc import Mapping
 from typing import cast
 
-from collections.abc import Mapping
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
@@ -21,13 +21,10 @@ from .pagination import TaskPagination
 from .permissions import CanAccessTask
 from .serializers import TaskSerializer
 
-class ProjectTaskListCreateView(
-    generics.ListCreateAPIView
-):
+
+class ProjectTaskListCreateView(generics.ListCreateAPIView):
     serializer_class = TaskSerializer
-    permission_classes = (
-        permissions.IsAuthenticated,
-    )
+    permission_classes = (permissions.IsAuthenticated,)
 
     pagination_class = TaskPagination
 
@@ -37,18 +34,18 @@ class ProjectTaskListCreateView(
         OrderingFilter,
     )
 
-    filterset_fields =(
+    filterset_fields = (
         "status",
         "priority",
         "assigned_to",
     )
 
-    search_fields =(
+    search_fields = (
         "title",
         "description",
     )
 
-    ordering_fields =(
+    ordering_fields = (
         "due_date",
         "created_at",
     )
@@ -56,9 +53,7 @@ class ProjectTaskListCreateView(
     def get_project(self):
         if not hasattr(self, "_project"):
             self._project = get_object_or_404(
-                Project.objects
-                .select_related("team")
-                .filter(
+                Project.objects.select_related("team").filter(
                     team_id=self.kwargs["team_id"],
                     team__members=self.request.user,
                 ),
@@ -74,10 +69,9 @@ class ProjectTaskListCreateView(
             False,
         ):
             return Task.objects.none()
-        
+
         return (
-            Task.objects
-            .filter(
+            Task.objects.filter(
                 project=self.get_project(),
             )
             .select_related(
@@ -110,9 +104,7 @@ class ProjectTaskListCreateView(
             Membership.Role.OWNER,
             Membership.Role.ADMIN,
         }:
-            raise PermissionDenied(
-                "No tienes permiso para crear tareas."
-            )
+            raise PermissionDenied("No tienes permiso para crear tareas.")
 
         return super().create(
             request,
@@ -135,9 +127,7 @@ class ProjectTaskListCreateView(
         )
 
 
-class TaskDetailView(
-    generics.RetrieveUpdateDestroyAPIView
-):
+class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = TaskSerializer
 
     permission_classes = (
@@ -145,20 +135,18 @@ class TaskDetailView(
         CanAccessTask,
     )
 
-    http_method_names = [
+    http_method_names = (
         "get",
         "patch",
         "delete",
         "head",
         "options",
-    ]
+    )
 
     def get_project(self):
         if not hasattr(self, "_project"):
             self._project = get_object_or_404(
-                Project.objects
-                .select_related("team")
-                .filter(
+                Project.objects.select_related("team").filter(
                     team_id=self.kwargs["team_id"],
                     team__members=self.request.user,
                 ),
@@ -168,17 +156,13 @@ class TaskDetailView(
         return self._project
 
     def get_queryset(self):
-        return (
-            Task.objects
-            .filter(
-                project=self.get_project(),
-            )
-            .select_related(
-                "project",
-                "project__team",
-                "assigned_to",
-                "created_by",
-            )
+        return Task.objects.filter(
+            project=self.get_project(),
+        ).select_related(
+            "project",
+            "project__team",
+            "assigned_to",
+            "created_by",
         )
 
     @transaction.atomic
@@ -196,8 +180,7 @@ class TaskDetailView(
         )
 
         membership = (
-            Membership.objects
-            .select_for_update()
+            Membership.objects.select_for_update()
             .filter(
                 team=task.project.team,
                 user=request.user,
@@ -210,41 +193,29 @@ class TaskDetailView(
         )
 
         if membership is None:
-            raise PermissionDenied(
-                "Ya no perteneces al equipo."
-            )
+            raise PermissionDenied("Ya no perteneces al equipo.")
 
         self.check_object_permissions(
             request,
             task,
         )
 
-        if (
-            membership.role
-            == Membership.Role.MEMBER
-        ):
+        if membership.role == Membership.Role.MEMBER:
             if not isinstance(
                 request.data,
                 Mapping,
             ):
-                raise PermissionDenied(
-                    "Los datos enviados deben ser un objeto."
-                )
+                raise PermissionDenied("Los datos enviados deben ser un objeto.")
 
             allowed_fields = {
                 "status",
             }
 
-            received_fields = set(
-                request.data.keys()
-            )
+            received_fields = set(request.data.keys())
 
-            if not received_fields.issubset(
-                allowed_fields
-            ):
+            if not received_fields.issubset(allowed_fields):
                 raise PermissionDenied(
-                    "Un miembro asignado solo puede cambiar "
-                    "el estado de la tarea."
+                    "Un miembro asignado solo puede cambiar el estado de la tarea."
                 )
 
         serializer = self.get_serializer(
@@ -266,9 +237,7 @@ class TaskDetailView(
         )
 
     def get_serializer_context(self):
-        context = dict(
-            super().get_serializer_context()
-        )
+        context = dict(super().get_serializer_context())
 
         project = self.get_project()
 
@@ -281,12 +250,11 @@ class TaskDetailView(
     def perform_update(self, serializer):
         instance = serializer.instance
 
-        assert instance is not None
+        if not isinstance(instance, Task):
+            raise RuntimeError("Task serializer instance is missing.")
 
         previous_assignee_id = (
-            instance.assigned_to.pk
-            if instance.assigned_to is not None
-            else None
+            instance.assigned_to.pk if instance.assigned_to is not None else None
         )
 
         task = serializer.save()

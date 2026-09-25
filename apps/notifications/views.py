@@ -6,33 +6,21 @@ from .models import Notification
 from .serializers import NotificationSerializer
 
 
-class NotificationListView(
-    generics.ListAPIView
-):
+class NotificationListView(generics.ListAPIView):
     serializer_class = NotificationSerializer
 
-    permission_classes = (
-        permissions.IsAuthenticated,
-    )
+    permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self):
-        return (
-            Notification.objects
-            .filter(
-                user=self.request.user,
-            )
-            .order_by("-created_at")
-        )
+        return Notification.objects.filter(
+            user=self.request.user,
+        ).order_by("-created_at")
 
 
-class NotificationMarkReadView(
-    generics.GenericAPIView
-):
+class NotificationMarkReadView(generics.GenericAPIView):
     serializer_class = NotificationSerializer
 
-    permission_classes = (
-        permissions.IsAuthenticated,
-    )
+    permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self):
         return Notification.objects.filter(

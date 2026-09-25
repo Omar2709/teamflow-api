@@ -13,115 +13,74 @@ It allows teams to manage members, projects, tasks, comments, dashboards, and no
 ### Authentication
 
 - User registration
-
 - JWT authentication
-
 - Access and refresh tokens
-
 - Token verification
-
 - Refresh token rotation
-
 - Refresh token blacklist
-
 - Logout
-
 - Authenticated user profile
 
 ### Teams
 
 - Create and retrieve teams
-
 - Team membership management
-
 - Role-based permissions
-
 - Supported roles:
 
   - Owner
-
   - Admin
-
   - Member
 
 - Add and remove members
-
 - Change member roles
-
 - Transfer team ownership
-
 - Prevent multiple owners per team
-
 - Isolate resources between teams
 
 ### Projects
 
 - Create projects inside teams
-
 - List and retrieve projects
-
 - Update and delete projects
-
 - Team-based access control
-
 - Unique project names inside each team
 
 ### Tasks
 
 - Create and manage tasks inside projects
-
 - Assign tasks to team members
-
 - Reassign tasks
-
 - Task statuses:
 
   - Todo
-
   - In progress
-
   - Done
 
 - Task priorities:
 
   - Low
-
   - Medium
-
   - High
 
 - Optional due dates
-
 - Task filtering
-
 - Search by title and description
-
 - Ordering by due date and creation date
-
 - Pagination
-
 - Assigned members can update their own task status
-
 - Owners and admins can fully manage tasks
-
 - Task assignees must belong to the corresponding team
 
 ### Comments
 
 - Add comments to tasks
-
 - List task comments
-
 - Edit comments
-
 - Delete comments
-
 - Comment ownership rules
-
 - Owners and admins can moderate comments
-
 - Pagination
-
 - Team-based access isolation
 
 ### Dashboard
@@ -129,55 +88,32 @@ It allows teams to manage members, projects, tasks, comments, dashboards, and no
 Team-level dashboard metrics including:
 
 - Total members
-
 - Total projects
-
 - Total tasks
-
 - Tasks by status
-
 - Tasks by priority
-
 - Overdue tasks
-
 - Tasks due soon
-
 - Unassigned tasks
-
 - Per-project task breakdown
-
 - Personal task metrics for the authenticated user
-
 - Personal overdue task metrics
-
 - Personal due-soon task metrics
 
 ### Notifications
 
 - Private notifications per user
-
 - Read/unread state
-
 - Read timestamp
-
 - Mark notifications as read
-
 - Automatic notification when a task is assigned
-
 - Automatic notification when a task is reassigned
-
 - Automatic notification when someone comments on a task
-
 - Notifications for tasks approaching their due date
-
 - Duplicate notification prevention
-
 - Users cannot access other users' notifications
-
 - Due-soon notification logic implemented as an idempotent service
-
 - Celery task integration for background execution
-
 - Periodic due-soon notification execution with Celery Beat
 
 ---
@@ -187,91 +123,59 @@ Team-level dashboard metrics including:
 ### Backend
 
 - Python 3.13
-
 - Django 6
-
 - Django REST Framework
-
 - Simple JWT
-
 - django-filter
-
 - drf-spectacular
-
 - Gunicorn
-
 - Celery 5.6
 
 ### Database
 
 - PostgreSQL 18
-
 - Django ORM
-
 - Database constraints
-
 - Database indexes
-
 - Query annotations and aggregations
 
 ### Background Processing
 
 - Celery
-
 - Celery Beat
-
 - Redis 8
-
 - Redis as Celery message broker
-
 - Redis as Django cache backend for authentication throttling
-
 - Containerized Celery worker
-
 - Containerized Celery Beat scheduler
 
 ### Dependency Management
 
 - uv
-
 - `pyproject.toml`
-
 - `uv.lock`
 
-### Testing
+### Testing and Code Quality
 
 - pytest
-
 - pytest-django
-
+- Ruff
 - django-stubs
-
 - djangorestframework-stubs
-
 - Django REST Framework APIClient
-
 - PostgreSQL test database
-
 - OpenAPI regression tests
-
 - ORM query regression tests
 
 ### Infrastructure and Tools
 
 - Docker
-
 - Docker Compose
-
 - Gunicorn
-
 - Git
-
 - GitHub
-
 - GitHub Actions
-
 - PostgreSQL service containers in CI
-
 - WSL 2 / Linux containers when running Docker Desktop on Windows
 
 The project currently contains **225 passing automated tests** covering authentication, authorization, teams, projects, tasks, comments, dashboards, notifications, database behavior, Celery integration, OpenAPI contracts, and ORM query performance.
@@ -295,7 +199,6 @@ Django REST Framework
   │
   └──────────────► Redis
                     Django cache / throttling
-
 Celery Beat
   │
   │ periodic task
@@ -333,13 +236,11 @@ TeamFlow includes a GitHub Actions CI pipeline that runs automatically on pushes
 The pipeline uses PostgreSQL 18.6 and validates:
 
 - Dependency reproducibility with `uv.lock`
-
+- Ruff lint with `uv run ruff check .`
+- Ruff format check with `uv run ruff format --check .`
 - Django system checks
-
 - Pending model migrations
-
 - OpenAPI schema generation and validation
-
 - The complete automated test suite
 
 The current CI pipeline performs:
@@ -350,6 +251,10 @@ Checkout repository
 Set up uv and Python
         ↓
 Install dependencies
+        ↓
+Ruff lint
+        ↓
+Ruff format check
         ↓
 Start PostgreSQL service
         ↓
@@ -365,17 +270,11 @@ pytest
 Current test suite:
 
 - 225 automated tests
-
 - Unit and integration tests
-
 - Authentication and authorization tests
-
 - API behavior tests
-
 - Celery notification tests
-
 - OpenAPI regression tests
-
 - ORM query regression tests for N+1 detection
 
 The CI environment uses ephemeral credentials and does not require local `.env` secrets.
@@ -390,6 +289,10 @@ teamflow/
 ├── .github/
 │   └── workflows/
 │       └── ci.yml
+│
+├── .vscode/
+│   ├── settings.json
+│   └── tasks.json
 │
 ├── apps/
 │   ├── users/
@@ -510,17 +413,11 @@ TeamFlow implements authorization rules beyond basic authentication.
 Can:
 
 - Manage the team
-
 - Add and remove members
-
 - Assign roles
-
 - Transfer team ownership
-
 - Create, update, and delete projects
-
 - Create, update, and delete tasks
-
 - Moderate comments
 
 A team can only have one owner.
@@ -530,11 +427,8 @@ A team can only have one owner.
 Can:
 
 - Manage regular members
-
 - Create, update, and delete projects
-
 - Create, update, and delete tasks
-
 - Moderate comments
 
 Admins cannot transfer ownership or assign the owner role.
@@ -544,17 +438,11 @@ Admins cannot transfer ownership or assign the owner role.
 Can:
 
 - View teams they belong to
-
 - View projects
-
 - View tasks
-
 - View and create comments
-
 - Edit their own comments
-
 - Delete their own comments
-
 - Update the status of tasks assigned to them
 
 Members cannot modify administrative team resources.
@@ -679,9 +567,7 @@ Swagger includes support for JWT authentication and documents protected endpoint
 Custom response schemas are defined for endpoints that cannot be fully inferred automatically, including:
 
 - Authenticated user profile
-
 - Logout request and responses
-
 - Team dashboard
 
 The project also contains regression tests to ensure important OpenAPI contracts remain available and correctly typed.
@@ -787,9 +673,7 @@ TASK_ASSIGNED notification
 No notification is created when:
 
 - The task remains assigned to the same user
-
 - The task has no assignee
-
 - A user assigns the task to themselves
 
 ### Comments
@@ -797,13 +681,11 @@ No notification is created when:
 When someone comments on a task, notifications may be sent to:
 
 - The task creator
-
 - The current task assignee
 
 The system avoids:
 
 - Notifying the comment author about their own comment
-
 - Sending duplicate notifications when the creator and assignee are the same user
 
 ### Due-Soon Tasks
@@ -831,15 +713,10 @@ Repeated execution does not create duplicate due-soon notifications.
 You need:
 
 - Python 3.13
-
 - PostgreSQL
-
 - uv
-
 - Git
-
 - Docker Desktop
-
 - Docker Compose
 
 On Windows, Docker Desktop can use WSL 2 as its Linux container backend.
@@ -901,17 +778,14 @@ DB_HOST=localhost
 DB_PORT=5432
 CELERY_BROKER_URL=redis://localhost:6379/0
 DJANGO_CACHE_URL=redis://localhost:6379/1
-
 DJANGO_TRUST_PROXY_SSL_HEADER=False
 DJANGO_LOG_LEVEL=INFO
-
 DJANGO_SECURE_SSL_REDIRECT=False
 DJANGO_SESSION_COOKIE_SECURE=False
 DJANGO_CSRF_COOKIE_SECURE=False
 DJANGO_SECURE_HSTS_SECONDS=0
 DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS=False
 DJANGO_SECURE_HSTS_PRELOAD=False
-
 GUNICORN_BIND=0.0.0.0:8000
 GUNICORN_WORKERS=2
 GUNICORN_THREADS=2
@@ -934,37 +808,21 @@ TeamFlow supports configuration for:
 
 ```text
 DJANGO_DEBUG
-
 DJANGO_ALLOWED_HOSTS
-
 DJANGO_SECURE_SSL_REDIRECT
-
 DJANGO_SESSION_COOKIE_SECURE
-
 DJANGO_CSRF_COOKIE_SECURE
-
 DJANGO_SECURE_HSTS_SECONDS
-
 DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS
-
 DJANGO_SECURE_HSTS_PRELOAD
-
 DJANGO_TRUST_PROXY_SSL_HEADER
-
 DJANGO_CACHE_URL
-
 DJANGO_LOG_LEVEL
-
 GUNICORN_BIND
-
 GUNICORN_WORKERS
-
 GUNICORN_THREADS
-
 GUNICORN_TIMEOUT
-
 GUNICORN_GRACEFUL_TIMEOUT
-
 GUNICORN_KEEPALIVE
 ```
 
@@ -1236,7 +1094,7 @@ The default container configuration uses:
 5 second keep-alive
 ```
 
-This means **2 worker processes × 2 threads each**. These values can be overridden through environment variables without rebuilding the Docker image.
+This means ****2 worker processes × 2 threads each****. These values can be overridden through environment variables without rebuilding the Docker image.
 
 Gunicorn access and error logs are written to standard output and standard error so container platforms such as Docker and ECS can collect them directly.
 
@@ -1344,81 +1202,43 @@ The project currently contains:
 The suite covers scenarios such as:
 
 - User registration
-
 - JWT authentication
-
 - Access token handling
-
 - Refresh token rotation
-
 - Token blacklist
-
 - Logout
-
 - Unauthorized access
-
 - Team isolation
-
 - Role-based permissions
-
 - Membership rules
-
 - Team ownership transfer
-
 - Project permissions
-
 - Project uniqueness constraints
-
 - Task creation
-
 - Task assignment
-
 - Task reassignment
-
 - Task permissions
-
 - Task status updates
-
 - Filtering
-
 - Searching
-
 - Ordering
-
 - Pagination
-
 - Comment creation
-
 - Comment ownership
-
 - Comment moderation
-
 - Dashboard metrics
-
 - Overdue task calculations
-
 - Due-soon task calculations
-
 - User notifications
-
 - Task assignment notifications
-
 - Comment notifications
-
 - Due-soon notifications
-
 - Notification idempotency
-
 - Celery configuration
-
 - Celery task registration
-
 - Celery task behavior
-
 - Celery Beat configuration
-
 - OpenAPI schema regression tests
-
 - ORM query regression tests for N+1 detection
 
 The test suite runs against PostgreSQL.
@@ -1434,31 +1254,20 @@ Important business rules are also enforced at database level.
 Examples include:
 
 - A user can only belong once to a team
-
 - A team can only have one owner
-
 - Project names are unique inside each team
-
 - Due-soon notifications are unique per user, task, and notification type
 
 Database indexes are used for commonly queried combinations such as:
 
 - Membership team and role
-
 - Membership user and role
-
 - Task project and status
-
 - Task project and priority
-
 - Task assignee and status
-
 - Active assigned tasks by due date for due-soon processing
-
 - Comment task and creation date
-
 - Notification user and read state
-
 - Notification user and creation date
 
 This helps move important integrity rules closer to the database instead of relying exclusively on application code.
@@ -1472,15 +1281,10 @@ Critical read endpoints include regression tests that verify the number of SQL q
 The audit currently covers:
 
 - Teams
-
 - Projects
-
 - Tasks
-
 - Comments
-
 - Notifications
-
 - Team dashboard
 
 Measured results include:
@@ -1536,67 +1340,36 @@ These regression tests help prevent future N+1 problems from being introduced ac
 The project includes several security-oriented decisions:
 
 - JWT-based authentication
-
 - Authentication required by default
-
 - Role-based authorization
-
 - Team-based resource isolation
-
 - Users cannot access resources from teams they do not belong to
-
 - Foreign-resource access frequently returns `404` to avoid exposing resource existence
-
 - Passwords are managed through Django's authentication system
-
 - Database credentials are stored in environment variables
-
 - Django secret keys are stored outside source control
-
 - Application secrets are excluded from Git
-
 - Refresh token rotation
-
 - Refresh token blacklist
-
 - Validation of task assignees against team membership
-
 - Database constraints enforce important business rules
-
 - Redis is bound to localhost in the local development configuration
-
 - Users cannot access or modify another user's notifications
-
 - `DEBUG` is environment-dependent
-
 - `ALLOWED_HOSTS` is environment-dependent
-
 - HTTPS redirect can be enabled through environment configuration
-
 - Secure session cookies can be enabled in production
-
 - Secure CSRF cookies can be enabled in production
-
 - HSTS is configurable per environment
-
 - Django deployment security checks are included in the production-readiness workflow
-
 - CI uses ephemeral credentials rather than development or production secrets
-
 - Registration applies Django password validation rules
-
 - Authentication endpoints use scoped request throttling
-
 - Throttling state uses the configured Django cache backend
-
 - Team ownership transfer uses transactional row locking
-
 - Sensitive authorization decisions are revalidated inside database transactions
-
 - Containers run application processes as an unprivileged user
-
 - Trusted reverse-proxy SSL headers are explicitly configurable
-
 - Health checks remain compatible with restricted application hosts
 
 HSTS duration, subdomain coverage, and preload policy should only be finalized after the production domain and HTTPS topology are confirmed.
@@ -1623,13 +1396,9 @@ Where framework-generated attributes or metaclass behavior cannot be inferred co
 Examples include:
 
 - Narrowing optional serializer instances
-
 - Respecting exact DRF method signatures
-
 - Using concrete application user types
-
 - Avoiding unsafe mutation of generic mappings
-
 - Handling Django ORM dynamic relationships carefully
 
 Typing changes are validated against the automated test suite to ensure they do not alter runtime behavior.
@@ -1713,6 +1482,8 @@ A typical local workflow is:
 uv sync
 docker compose up -d
 uv run python manage.py migrate
+uv run ruff check .
+uv run ruff format --check .
 uv run python manage.py check
 uv run python manage.py spectacular --validate
 uv run pytest
@@ -1737,18 +1508,11 @@ docker compose up -d
 Before considering a change ready, TeamFlow can validate:
 
 ```bash
+uv run ruff check .
+uv run ruff format --check .
 uv run python manage.py check
-```
-
-```bash
 uv run python manage.py makemigrations --check --dry-run
-```
-
-```bash
 uv run python manage.py spectacular --validate
-```
-
-```bash
 uv run pytest
 ```
 
@@ -1767,33 +1531,19 @@ The same core checks are enforced automatically by GitHub Actions.
 AI tools were used during development as a learning and engineering assistant for activities such as:
 
 - Reviewing backend architecture decisions
-
 - Discussing API and authorization design
-
 - Exploring edge cases
-
 - Designing testing scenarios
-
 - Debugging implementation errors
-
 - Debugging development environment issues
-
 - Reviewing security considerations
-
 - Understanding Django and Django REST Framework concepts
-
 - Understanding PostgreSQL behavior
-
 - Reviewing Docker and Redis integration
-
 - Understanding Celery and background processing
-
 - Reviewing ORM query performance
-
 - Designing OpenAPI regression tests
-
 - Reviewing continuous integration configuration
-
 - Comparing implementation alternatives
 
 AI-generated suggestions were not incorporated blindly.
@@ -1809,95 +1559,50 @@ The project currently contains **225 passing automated tests** covering business
 The backend currently includes:
 
 - JWT authentication
-
 - Custom user model
-
 - Teams
-
 - Role-based memberships
-
 - Ownership transfer
-
 - Projects
-
 - Tasks
-
 - Task filters
-
 - Task search
-
 - Task ordering
-
 - Task pagination
-
 - Comments
-
 - Comment moderation
-
 - Comment pagination
-
 - Team dashboard
-
 - Personal dashboard metrics
-
 - User notifications
-
 - Automatic task assignment notifications
-
 - Automatic comment notifications
-
 - Due-soon notification processing
-
 - Celery integration
-
 - Containerized Celery worker
-
 - Celery Beat scheduled jobs
-
 - Redis broker infrastructure
-
 - PostgreSQL integration
-
 - Docker Compose local infrastructure
-
 - Gunicorn web server
-
 - Containerized Django web service
-
 - Dedicated liveness and readiness endpoints
-
 - ALB readiness checks against PostgreSQL connectivity
-
 - Environment-based production configuration
-
 - Django deployment security checks
-
 - uv dependency management
-
 - Static typing support for Django and DRF
-
 - GitHub Actions continuous integration
-
 - OpenAPI schema generation
-
 - Swagger UI
-
 - ReDoc
-
 - OpenAPI regression coverage
-
 - ORM query regression tests for N+1 detection
-
 - Database performance audit
-
 - Console application logging for containerized environments
-
 - Database readiness failure logging
-
 - Celery retry and execution logging
-
 - Team ownership and membership role change logging
-
 - **225 automated tests**
 
 ---
@@ -1907,21 +1612,13 @@ The backend currently includes:
 Future improvements include:
 
 - Coordinated pagination for teams, memberships, projects, and notifications
-
 - Separating dashboard summaries from complete project metric listings
-
 - Production HTTPS/domain finalization
-
 - AWS WAF or edge-level rate limiting
-
 - Structured JSON application logging
-
 - Additional observability and monitoring
-
 - Error tracking
-
 - Automated continuous deployment
-
 - Load testing and Gunicorn capacity tuning
 
 ---
@@ -1933,47 +1630,26 @@ TeamFlow is intended to demonstrate more than basic CRUD operations.
 The project focuses on:
 
 - REST API design
-
 - Relational database modeling
-
 - Authentication
-
 - Authorization
-
 - Business rules
-
 - Data isolation
-
 - Database integrity
-
 - Service-layer design
-
 - Background processing
-
 - Scheduled jobs
-
 - Idempotency
-
 - Automated testing
-
 - Continuous integration
-
 - OpenAPI contracts
-
 - Static typing
-
 - ORM performance
-
 - N+1 detection and prevention
-
 - Security
-
 - Production-oriented configuration
-
 - Containerization
-
 - Maintainability
-
 - Reproducible development environments
 
 ---

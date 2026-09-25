@@ -21,9 +21,7 @@ class ProjectAdmin(admin.ModelAdmin):
         "created_by__email",
     )
 
-    list_filter = (
-        "created_at",
-    )
+    list_filter = ("created_at",)
 
     readonly_fields = (
         "created_at",

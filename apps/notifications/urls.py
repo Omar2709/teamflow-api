@@ -5,7 +5,6 @@ from .views import (
     NotificationMarkReadView,
 )
 
-
 app_name = "notifications"
 
 

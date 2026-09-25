@@ -1,7 +1,7 @@
 import pytest
-from django.urls import reverse
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
+from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -11,6 +11,7 @@ from apps.teams.models import Membership, Team
 from apps.users.models import User
 
 from .models import Comment
+
 
 @pytest.mark.django_db
 def test_team_member_can_create_task_comment():
@@ -87,6 +88,7 @@ def test_team_member_can_create_task_comment():
     assert comment.task == task
     assert comment.author == member
     assert comment.content == "Ya terminé esta parte."
+
 
 @pytest.mark.django_db
 def test_team_member_can_list_task_comments():
@@ -165,6 +167,7 @@ def test_team_member_can_list_task_comments():
     assert response.data["results"][0]["id"] == first_comment.pk
     assert response.data["results"][1]["id"] == second_comment.pk
 
+
 @pytest.mark.django_db
 def test_comment_list_only_returns_comments_from_requested_task():
     owner = User.objects.create_user(
@@ -235,12 +238,10 @@ def test_comment_list_only_returns_comments_from_requested_task():
 
     assert response.data["results"][0]["id"] == first_comment.pk
 
-    returned_ids = {
-        comment["id"]
-        for comment in response.data["results"]
-    }
+    returned_ids = {comment["id"] for comment in response.data["results"]}
 
     assert second_comment.pk not in returned_ids
+
 
 @pytest.mark.django_db
 def test_outsider_cannot_create_task_comment():
@@ -301,6 +302,7 @@ def test_outsider_cannot_create_task_comment():
 
     assert Comment.objects.count() == 0
 
+
 @pytest.mark.django_db
 def test_task_comment_rejects_content_with_only_spaces():
     owner = User.objects.create_user(
@@ -355,6 +357,7 @@ def test_task_comment_rejects_content_with_only_spaces():
 
     assert Comment.objects.count() == 0
 
+
 def test_unauthenticated_user_cannot_access_task_comments():
     client = APIClient()
 
@@ -370,6 +373,7 @@ def test_unauthenticated_user_cannot_access_task_comments():
     )
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
 
 @pytest.mark.django_db
 def test_team_member_can_retrieve_comment_detail():
@@ -442,6 +446,7 @@ def test_team_member_can_retrieve_comment_detail():
     assert response.data["content"] == "Comentario visible."
     assert response.data["author"]["id"] == owner.pk
 
+
 @pytest.mark.django_db
 def test_comment_author_can_update_own_comment():
     owner = User.objects.create_user(
@@ -506,6 +511,7 @@ def test_comment_author_can_update_own_comment():
     assert comment.content == "Contenido actualizado."
     assert comment.author == owner
     assert comment.task == task
+
 
 @pytest.mark.django_db
 def test_other_team_member_cannot_update_comment():
@@ -586,6 +592,7 @@ def test_other_team_member_cannot_update_comment():
 
     assert comment.content == "No debe ser modificado."
 
+
 @pytest.mark.django_db
 def test_comment_author_can_delete_own_comment():
     owner = User.objects.create_user(
@@ -655,6 +662,7 @@ def test_comment_author_can_delete_own_comment():
     assert not Comment.objects.filter(
         pk=comment.pk,
     ).exists()
+
 
 @pytest.mark.django_db
 def test_team_owner_and_admin_can_delete_other_users_comments():
@@ -756,6 +764,7 @@ def test_team_owner_and_admin_can_delete_other_users_comments():
         pk=admin_target.pk,
     ).exists()
 
+
 @pytest.mark.django_db
 def test_outsider_cannot_retrieve_comment_detail():
     owner = User.objects.create_user(
@@ -816,6 +825,7 @@ def test_outsider_cannot_retrieve_comment_detail():
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
 
+
 @pytest.mark.django_db
 def test_task_comment_list_is_paginated():
     owner = User.objects.create_user(
@@ -875,6 +885,7 @@ def test_task_comment_list_is_paginated():
 
     assert response.data["next"] is not None
     assert response.data["previous"] is None
+
 
 @pytest.mark.django_db
 def test_task_comment_list_can_return_second_page():
@@ -939,6 +950,7 @@ def test_task_comment_list_can_return_second_page():
     assert response.data["next"] is None
     assert response.data["previous"] is not None
 
+
 @pytest.mark.django_db
 def test_task_comment_list_accepts_custom_page_size():
     owner = User.objects.create_user(
@@ -1000,6 +1012,7 @@ def test_task_comment_list_accepts_custom_page_size():
     assert len(response.data["results"]) == 3
     assert response.data["next"] is not None
 
+
 @pytest.mark.django_db
 def test_task_comment_page_size_is_limited_to_maximum():
     owner = User.objects.create_user(
@@ -1060,6 +1073,7 @@ def test_task_comment_page_size_is_limited_to_maximum():
     assert response.data["count"] == 55
     assert len(response.data["results"]) == 50
     assert response.data["next"] is not None
+
 
 @pytest.mark.django_db
 def test_comment_list_query_count_does_not_grow_per_comment():
